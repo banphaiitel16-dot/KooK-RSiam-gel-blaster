@@ -1,0 +1,6 @@
+{
+  "name": "Gel Blaster Store",
+  "description": "A read-only online storefront for Gel Blaster products with LINE checkout.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

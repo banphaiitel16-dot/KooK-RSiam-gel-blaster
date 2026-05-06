@@ -1,0 +1,94 @@
+[
+  {
+    "id": "gb-001",
+    "name": "M4A1 Tactical Blaster",
+    "price": 2890,
+    "description": "ปืนเจลบลาสเตอร์ M4A1 ทรงยอดฮิต ยิงรัวต่อเนื่อง ชุดแต่งรอบกระบอก วัสดุแข็งแรงทนทาน น้ำหนักสมจริง แถมฟรีเจล 10,000 นัด",
+    "image": "https://images.unsplash.com/photo-1595590424283-b8f1784cb2c8?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "tags": ["Assault Rifle", "Best Seller"],
+    "category": "ปืนไรเฟิลจู่โจม",
+    "isOffSale": true
+  },
+  {
+    "id": "gb-002",
+    "name": "AK-47 Classic Wood",
+    "price": 2590,
+    "description": "บลาสเตอร์ทรง AK คลาสสิค มีระบบ Blowback จำลองแรงถีบ ยิงแม่นยำและทนทาน เหมาะสำหรับสายซุ่มและบุก",
+    "image": "https://images.unsplash.com/photo-1584281721528-791f1c750b3e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "tags": ["Assault Rifle"],
+    "category": "ปืนไรเฟิลจู่โจม",
+    "isComingSoon": true
+  },
+  {
+    "id": "gb-003",
+    "name": "G17 Sidearm Pro",
+    "price": 1290,
+    "description": "ปืนพกสั้นเจล G17 ขนาดกะทัดรัด พกพาง่าย ยิงเซมิออโต้ เหมาะสำหรับเป็นอาวุธรองฉุกเฉิน",
+    "image": "https://images.unsplash.com/photo-1620826978586-353e414c4897?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "tags": ["Pistol", "Compact"],
+    "category": "ปืนพก"
+  },
+  {
+    "id": "gb-004",
+    "name": "Vector SMG Series",
+    "price": 3190,
+    "description": "ปืนกลมือคริสเวกเตอร์ ดีไซน์ล้ำสมัย ยิงรัวนิ่ง อัตราการลั่นกระสุนสูงมาก ทำระยะหวังผลได้ดี",
+    "image": "https://images.unsplash.com/photo-1581093450021-4a7360e9a6b5?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "tags": ["SMG", "High Rate of Fire"],
+    "category": "ปืนกลมือ"
+  },
+  {
+    "id": "gb-005",
+    "name": "M24 Sniper Rifle",
+    "price": 3500,
+    "description": "ซุ่มยิงสายสไนเปอร์ ชักยิงทีละลัด ระยะหวังผลไกลกระสุนตรง มาพร้อมกล้องส่องทางไกลและขาทราย",
+    "image": "https://images.unsplash.com/photo-1509112756314-340f531c4155?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "tags": ["Sniper", "Bolt Action"],
+    "category": "Sniper"
+  },
+  {
+    "id": "gb-006",
+    "name": "Remington 870 Tactical",
+    "price": 1890,
+    "description": "ปืนลูกซองยิงทีละนัด ระบบปั๊มแอคชั่น ดุดันและทรงพลัง เหมาะสำหรับการเล่นระยะประชิด",
+    "image": "https://images.unsplash.com/photo-1585526019688-66f8c772cb1b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "tags": ["Shotgun", "Pump Action"],
+    "category": "ลูกซอง"
+  },
+  {
+    "id": "gb-007",
+    "name": "M249 SAW LMG",
+    "price": 4200,
+    "description": "ปืนกลเบา M249 แม็กกาซีนบรรจุเจลได้มหาศาล สาดกระสุนไม่มียั้ง ตัวเปิดที่ดีที่สุดของทีม",
+    "image": "https://images.unsplash.com/photo-1563207153-f472ce5d67e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "tags": ["LMG", "High Capacity"],
+    "category": "ปืน LMG"
+  },
+  {
+    "id": "gb-008",
+    "name": "Combat Helmet Level 3",
+    "price": 890,
+    "description": "หมวกกันน็อคทางยุทธวิธี ป้องกันเจลเข้าใบหน้าและศีรษะ ปรับขนาดได้ ดีไซน์เท่ดุดัน",
+    "image": "https://images.unsplash.com/photo-1610471257129-b4b1a4325a77?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "tags": ["Gear", "Protection"],
+    "category": "อุปกรณ์เสริม"
+  },
+  {
+    "id": "gb-009",
+    "name": "Li-Po 11.1V Battery & Charger",
+    "price": 550,
+    "description": "ชุดแบตเตอรี่ Li-Po ความจุสูง 11.1V พร้อมสายชาร์จ USB ช่วยเพิ่มความแรงและอัตราการลั่นกระสุน",
+    "image": "https://images.unsplash.com/photo-1618228308639-c5c8263f3bf7?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "tags": ["Accessory", "Power"],
+    "category": "ชุดที่ชาร์จและแบตเตอรี่"
+  },
+  {
+    "id": "gb-010",
+    "name": "Hardened Gel Balls 10,000 Pcs",
+    "price": 120,
+    "description": "ลูกกระสุนเจลแบบแข็งพิเศษ จำนวน 10,000 นัด พร้อมใช้งานเมื่อแช่น้ำ 4 ชั่วโมง ไม่แตกง่ายในกระบอก ปลอดภัยและย่อยสลายได้",
+    "image": "https://images.unsplash.com/photo-1610471257129-b4b1a4325a77?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+    "tags": ["Ammo", "Refill"],
+    "category": "ลูกกระสุนเจล"
+  }
+]
