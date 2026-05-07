@@ -5,8 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  Crosshair,
+import { Crosshair,
   MessageCircle,
   PiggyBank,
   ShieldCheck,
@@ -28,7 +27,7 @@ import {
   Star,
   Check,
   Clock
-} from "lucide-react";
+, Users, LayoutDashboard, BarChart3, Edit, Plus, Trash2, ShieldAlert, Save } from 'lucide-react';
 import productsData from "./data/products.json";
 import { Product, Review } from "./types";
 
@@ -208,6 +207,33 @@ const CATEGORIES = [
   { id: "ลูกกระสุนเจล", label: "ลูกกระสุนเจล", sub: GEL_BALL_SUBCATEGORIES },
 ];
 
+
+const renderTitle = (title: string, navbar: boolean = false) => {
+  if (title.includes('-')) {
+    const parts = title.split('-');
+    const firstPart = parts[0];
+    const rest = parts.slice(1).join('-');
+    
+    if (navbar) {
+      return (
+        <>
+          {firstPart}-
+          <span className="text-tactical-red group-hover:text-white transition-colors">
+            {rest}
+          </span>
+        </>
+      );
+    }
+    
+    return (
+      <>
+        {firstPart}-<span className="text-tactical-red">{rest}</span>
+      </>
+    );
+  }
+  return title;
+};
+
 export default function App() {
   const [activeCategory, setActiveCategory] = useState("ทั้งหมด");
   const [priceCategory, setPriceCategory] = useState("ทั้งหมด");
@@ -238,6 +264,8 @@ export default function App() {
     }
     return null;
   });
+  const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
+  const [adminTab, setAdminTab] = useState("overview");
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register" | "forgot_password" | "email_sent" | "reset_password">("login");
@@ -269,9 +297,67 @@ export default function App() {
   const [newReviewComment, setNewReviewComment] = useState("");
   const [newReviewRating, setNewReviewRating] = useState(5);
 
+  
+  const [siteSettings, setSiteSettings] = useState(() => {
+    const saved = localStorage.getItem('siteSettings');
+    return saved ? JSON.parse(saved) : { logo: '/logo.jpg', title: 'KooK-RSiam' };
+  });
+  
+  const [orders, setOrders] = useState<any[]>(() => {
+    const saved = localStorage.getItem('orders');
+    return saved ? JSON.parse(saved) : [
+      { id: 'ORD-001', user: 'Somchai K.', items: ['gb-001'], total: 2990, status: 'Completed', date: '2026-05-01' },
+      { id: 'ORD-002', user: 'Weerayut T.', items: ['acc-001'], total: 450, status: 'Pending', date: '2026-05-05' }
+    ];
+  });
+
+  const [products, setProducts] = useState<Product[]>(() => {
+    const saved = localStorage.getItem('products');
+    return saved ? JSON.parse(saved) : productsData;
+  });
+
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [editingSettings, setEditingSettings] = useState<{logo: string, title: string} | null>(null);
+  const [editingOrder, setEditingOrder] = useState<any>(null);
+  
+  useEffect(() => {
+    localStorage.setItem('products', JSON.stringify(products));
+  }, [products]);
+
+  useEffect(() => {
+    localStorage.setItem('siteSettings', JSON.stringify(siteSettings));
+  }, [siteSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('orders', JSON.stringify(orders));
+  }, [orders]);
+  
+  const handleSaveProduct = (p: any) => {
+    if (products.find(x => x.id === p.id)) {
+      setProducts(products.map(x => x.id === p.id ? p : x));
+    } else {
+      setProducts([p, ...products]);
+    }
+    setEditingProduct(null);
+  };
+
+  const handleSaveOrder = (o: any) => {
+    if (orders.find((x:any) => x.id === o.id)) {
+      setOrders(orders.map((x:any) => x.id === o.id ? o : x));
+    } else {
+      setOrders([o, ...orders]);
+    }
+    setEditingOrder(null);
+  };
+
   const [userPasswords, setUserPasswords] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem('userPasswords');
-    return saved ? JSON.parse(saved) : {};
+    const parsed = saved ? JSON.parse(saved) : {};
+    // Add default admin account if not exists
+    if (!parsed['admin@kook.com']) {
+      parsed['admin@kook.com'] = 'admin1234';
+    }
+    return parsed;
   });
 
   useEffect(() => {
@@ -308,8 +394,6 @@ export default function App() {
   const [chickens, setChickens] = useState<
     { id: number; x: number; y: number; endX: number; endY: number; rotation: number }[]
   >([]);
-
-  const products: Product[] = productsData;
 
   const [favorites, setFavorites] = useState<string[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -435,8 +519,8 @@ export default function App() {
             className="w-40 h-40 md:w-56 md:h-56 rounded-[2rem] overflow-hidden flex items-center justify-center bg-black border border-zinc-800 shadow-[0_0_50px_rgba(255,255,255,0.05)]"
           >
             <img 
-              src="/logo.jpg" 
-              alt="Kook-RSiam Logo" 
+              src={siteSettings.logo} 
+              alt="Logo" 
               className="w-full h-full object-cover" 
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = 'none';
@@ -444,7 +528,7 @@ export default function App() {
               }} 
             />
             {/* Fallback text if logo image is missing */}
-            <div className="hidden text-white font-bold text-3xl text-center">Kook-RSiam</div>
+            <div className="hidden text-white font-bold text-3xl text-center">{siteSettings.title}</div>
           </motion.div>
 
           <div className="flex flex-col items-center gap-4 mt-8">
@@ -681,6 +765,11 @@ export default function App() {
             )}
           </form>
 
+          {authMode === 'login' && (
+            <div className="mt-6 border-t border-zinc-800/50 pt-4 text-center opacity-0 pointer-events-none">
+              {/* Login hint removed */}
+            </div>
+          )}
         </motion.div>
       </div>
     );
@@ -710,10 +799,7 @@ export default function App() {
                 className="flex items-center gap-3 cursor-pointer group"
               >
                 <span className="font-display font-bold text-2xl tracking-tighter text-white group-hover:text-tactical-red transition-colors">
-                  KooK-
-                  <span className="text-tactical-red group-hover:text-white transition-colors">
-                    RSiam
-                  </span>
+                  {renderTitle(siteSettings.title, true)}
                 </span>
               </button>
             </div>
@@ -858,6 +944,15 @@ export default function App() {
                       <User className="w-4 h-4" />
                       โปรไฟล์ของฉัน
                     </button>
+                    {user?.email === 'admin@kook.com' && (
+                      <button
+                        onClick={() => setIsAdminDashboardOpen(true)}
+                        className="w-full flex items-center gap-2 p-3 text-sm text-tactical-red hover:bg-zinc-800 transition-colors text-left cursor-pointer border-t border-zinc-800/50"
+                      >
+                        <ShieldAlert className="w-4 h-4" />
+                        ระบบหลังบ้าน
+                      </button>
+                    )}
                     <button
                       onClick={() => setUser(null)}
                       className="w-full flex items-center gap-2 p-3 text-sm text-red-400 hover:bg-zinc-800 transition-colors text-left cursor-pointer"
@@ -1156,17 +1251,12 @@ export default function App() {
       <footer className="border-t border-zinc-800 bg-tactical-gray/50 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3 opacity-50 hover:opacity-100 transition-opacity">
-            <img
-              src="/logo.jpg"
-              alt="Logo"
-              className="w-8 h-8 object-contain rounded-md"
-            />
             <span className="font-display font-bold text-xl tracking-tighter text-white">
-              KooK-<span className="text-tactical-red">RSiam</span>
+              {renderTitle(siteSettings.title)}
             </span>
           </div>
           <p className="text-zinc-500 text-sm text-center md:text-left">
-            © {new Date().getFullYear()} KooK-RSiam. All rights reserved.
+            © {new Date().getFullYear()} {siteSettings.title}. All rights reserved.
             <br />
             Gel Blaster Tactical Store
           </p>
@@ -1407,8 +1497,13 @@ export default function App() {
 
               {/* Details Section */}
               <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col overflow-y-auto">
-                <div className="uppercase tracking-widest text-xs font-bold text-tactical-red mb-2">
-                  {selectedProduct.category}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="uppercase tracking-widest text-xs font-bold text-tactical-red">
+                    {selectedProduct.category}
+                  </div>
+                  <div className="text-xs font-mono text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded">
+                    รหัสสินค้า: {selectedProduct.id}
+                  </div>
                 </div>
                 <h2 className="text-2xl md:text-3xl font-display font-bold text-white mb-4">
                   {selectedProduct.name}
@@ -1597,11 +1692,621 @@ export default function App() {
                   <p className="text-zinc-400 text-sm">สมาชิก Kook-RSiam กองทัพสายซุ่ม</p>
                 </div>
 
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 sm:p-5 flex justify-center text-center">
-                   <p className="text-zinc-500 text-sm">
-                      ไม่มีประวัติการสั่งซื้อ หรือ อยู่ระหว่างรอการอัปเดตจากผู้ดูแลระบบ
-                   </p>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 sm:p-5 flex flex-col gap-3 max-h-64 overflow-y-auto hidden-scrollbar">
+                  {orders.filter(o => o.user === user.email).length > 0 ? (
+                    orders.filter(o => o.user === user.email).map((o: any) => (
+                      <div key={o.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-left">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-zinc-300 font-mono text-xs">{o.id}</span>
+                          <span className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider font-bold ${o.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-yellow-500/20 text-yellow-500'}`}>{o.status}</span>
+                        </div>
+                        <div className="text-sm font-medium text-white mb-1">{o.items.join(', ')}</div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-zinc-500 text-xs">{o.date}</span>
+                          <span className="text-tactical-red font-bold text-sm">฿{o.total.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex justify-center text-center p-4">
+                      <p className="text-zinc-500 text-sm">
+                        ไม่มีประวัติการสั่งซื้อ หรือ อยู่ระหว่างรอการอัปเดตจากผู้ดูแลระบบ
+                      </p>
+                    </div>
+                  )}
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      
+      {/* Admin Dashboard Modal */}
+      <AnimatePresence>
+        {isAdminDashboardOpen && user?.email === 'admin@kook.com' && (
+          <div className="fixed inset-0 z-[200] bg-tactical-black flex flex-col overflow-hidden">
+            {/* Admin Header */}
+            <div className="h-16 border-b border-zinc-800 bg-zinc-950 px-6 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-tactical-red rounded-xl flex items-center justify-center">
+                  <ShieldAlert className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-white font-bold font-display leading-tight">Admin Console</h1>
+                  <p className="text-xs text-zinc-400">{siteSettings.title} Management</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAdminDashboardOpen(false)}
+                className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+              {/* Admin Sidebar */}
+              <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-zinc-800 bg-zinc-950/50 flex flex-row md:flex-col py-2 md:py-6 gap-2 shrink-0 overflow-x-auto md:overflow-y-auto whitespace-nowrap">
+                <button
+                  onClick={() => setAdminTab("overview")}
+                  className={`flex flex-shrink-0 items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 text-sm font-medium transition-colors ${adminTab === 'overview' ? 'text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'}`}
+                >
+                  <LayoutDashboard className="w-4 h-4 md:w-5 md:h-5" />
+                  ภาพรวมระบบ
+                </button>
+                <button
+                  onClick={() => setAdminTab("products")}
+                  className={`flex flex-shrink-0 items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 text-sm font-medium transition-colors ${adminTab === 'products' ? 'text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'}`}
+                >
+                  <Package className="w-4 h-4 md:w-5 md:h-5" />
+                  จัดการสินค้า
+                </button>
+                <button
+                  onClick={() => setAdminTab("users")}
+                  className={`flex flex-shrink-0 items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 text-sm font-medium transition-colors ${adminTab === 'users' ? 'text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'}`}
+                >
+                  <Users className="w-4 h-4 md:w-5 md:h-5" />
+                  จัดการผู้ใช้
+                </button>
+                <button
+                  onClick={() => setAdminTab("orders")}
+                  className={`flex flex-shrink-0 items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 text-sm font-medium transition-colors ${adminTab === 'orders' ? 'text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'}`}
+                >
+                  <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" />
+                  ประวัติการสั่งซื้อ
+                </button>
+                <button
+                  onClick={() => { setAdminTab("settings"); setEditingSettings(siteSettings); }}
+                  className={`flex flex-shrink-0 items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 text-sm font-medium transition-colors ${adminTab === 'settings' ? 'text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'}`}
+                >
+                  <Settings className="w-4 h-4 md:w-5 md:h-5" />
+                  การตั้งค่าทั่วไป
+                </button>
+              </div>
+
+              {/* Admin Content */}
+              <div className="flex-1 overflow-y-auto bg-tactical-black p-4 md:p-6 lg:p-10">
+                {adminTab === 'overview' && (
+                  <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-white mb-6">ภาพรวมระบบ (Dashboard)</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex flex-col justify-between">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl">
+                            <Users className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-zinc-400 text-sm">ผู้ใช้ทั้งหมด</p>
+                            <h3 className="text-2xl font-bold text-white">{Object.keys(userPasswords).length}</h3>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex flex-col justify-between">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="p-3 bg-tactical-red/10 text-tactical-red rounded-xl">
+                            <Package className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-zinc-400 text-sm">สินค้าในระบบ</p>
+                            <h3 className="text-2xl font-bold text-white">{products.length}</h3>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex flex-col justify-between">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-xl">
+                            <BarChart3 className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-zinc-400 text-sm">ยอดสั่งซื้อ (จำลอง)</p>
+                            <h3 className="text-2xl font-bold text-white">12</h3>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {adminTab === 'products' && (
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap gap-4 items-center justify-between">
+                      <h2 className="text-2xl font-bold text-white">จัดการสินค้า</h2>
+                      <button onClick={() => setEditingProduct({
+                        id: 'PROD-' + Math.floor(Math.random() * 100000).toString().padStart(5, '0'),
+                        name: '',
+                        price: 0,
+                        description: '',
+                        image: '',
+                        images: [],
+                        tags: [],
+                        category: '',
+                        isOffSale: false,
+                        isComingSoon: false
+                      })} className="bg-tactical-red hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer">
+                        <Plus className="w-4 h-4" />
+                        เพิ่มสินค้าใหม่
+                      </button>
+                    </div>
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-x-auto">
+                      <table className="w-full text-left text-sm text-zinc-400 min-w-[600px]">
+                        <thead className="bg-zinc-950/50 text-zinc-300 uppercase font-medium border-b border-zinc-800">
+                          <tr>
+                            <th className="px-6 py-4">ID</th>
+                            <th className="px-6 py-4">ชื่อสินค้า</th>
+                            <th className="px-6 py-4">หมวดหมู่</th>
+                            <th className="px-6 py-4">ราคา</th>
+                            <th className="px-6 py-4 text-right">จัดการ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800/50">
+                          {products.map((p: any) => (
+                            <tr key={p.id} className="hover:bg-zinc-800/50 transition-colors">
+                              <td className="px-6 py-4 font-mono text-xs">{p.id}</td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <img src={p.image} alt={p.name} className="w-10 h-10 rounded object-cover bg-zinc-800" />
+                                  <span className="text-white font-medium">{p.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-zinc-300">{p.category}</td>
+                              <td className="px-6 py-4 text-tactical-red font-bold">฿{p.price.toLocaleString()}</td>
+                              <td className="px-6 py-4 text-right">
+                                <button onClick={() => setEditingProduct(p)} className="p-2 text-zinc-400 hover:text-white transition-colors cursor-pointer" title="แก้ไข">
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => setProducts(products.filter((x:any) => x.id !== p.id))} className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer" title="ลบ">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {adminTab === 'orders' && (
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap gap-4 items-center justify-between">
+                      <h2 className="text-2xl font-bold text-white">ประวัติการสั่งซื้อ</h2>
+                      <button onClick={() => setEditingOrder({
+                        id: 'ORD-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0'),
+                        user: '',
+                        items: [],
+                        total: 0,
+                        status: 'Pending',
+                        date: new Date().toISOString().split('T')[0]
+                      })} className="bg-white hover:bg-zinc-200 text-black px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer">
+                        <Plus className="w-4 h-4" /> เพิ่มการสั่งซื้อใหม่
+                      </button>
+                    </div>
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-x-auto">
+                      <table className="w-full text-left text-sm text-zinc-400 min-w-[600px]">
+                        <thead className="bg-zinc-950/50 text-zinc-300 uppercase font-medium border-b border-zinc-800">
+                          <tr>
+                            <th className="px-6 py-4">ID</th>
+                            <th className="px-6 py-4">ผู้สั่งซื้อ</th>
+                            <th className="px-6 py-4">สินค้า</th>
+                            <th className="px-6 py-4">ยอดรวม</th>
+                            <th className="px-6 py-4">วันที่</th>
+                            <th className="px-6 py-4">สถานะ</th>
+                            <th className="px-6 py-4 text-right">จัดการ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800/50">
+                          {orders.map((o: any) => (
+                            <tr key={o.id} className="hover:bg-zinc-800/50 transition-colors">
+                              {editingOrder?.id === o.id ? (
+                                <td colSpan={7} className="p-4">
+                                  <div className="flex gap-4 items-center flex-wrap">
+                                    <input type="text" className="bg-zinc-950 border border-zinc-700 text-white px-3 py-1.5 rounded" value={editingOrder.id} onChange={e => setEditingOrder({...editingOrder, id: e.target.value})} />
+                                    <input type="text" className="bg-zinc-950 border border-zinc-700 text-white px-3 py-1.5 rounded" value={editingOrder.user} onChange={e => setEditingOrder({...editingOrder, user: e.target.value})} />
+                                    <input type="number" className="bg-zinc-950 border border-zinc-700 text-white px-3 py-1.5 rounded" value={editingOrder.total} onChange={e => setEditingOrder({...editingOrder, total: Number(e.target.value)})} />
+                                    <input type="date" className="bg-zinc-950 border border-zinc-700 text-white px-3 py-1.5 rounded" value={editingOrder.date} onChange={e => setEditingOrder({...editingOrder, date: e.target.value})} />
+                                    <select className="bg-zinc-950 border border-zinc-700 text-white px-3 py-1.5 rounded" value={editingOrder.status} onChange={e => setEditingOrder({...editingOrder, status: e.target.value})}>
+                                      <option value="Pending">Pending</option>
+                                      <option value="Completed">Completed</option>
+                                      <option value="Shipping">Shipping</option>
+                                      <option value="Cancelled">Cancelled</option>
+                                    </select>
+                                    <button onClick={() => {
+                                      setOrders(orders.map(x => x.id === o.id ? editingOrder : x));
+                                      setEditingOrder(null);
+                                    }} className="bg-tactical-red text-white px-4 py-1.5 rounded">บันทึก</button>
+                                    <button onClick={() => setEditingOrder(null)} className="bg-zinc-700 text-white px-4 py-1.5 rounded">ยกเลิก</button>
+                                  </div>
+                                </td>
+                              ) : (
+                                <>
+                                  <td className="px-6 py-4 font-mono text-xs">{o.id}</td>
+                                  <td className="px-6 py-4 text-white">{o.user}</td>
+                                  <td className="px-6 py-4">{o.items.join(', ')}</td>
+                                  <td className="px-6 py-4 text-tactical-red font-bold">฿{o.total.toLocaleString()}</td>
+                                  <td className="px-6 py-4">{o.date}</td>
+                                  <td className="px-6 py-4">
+                                    <span className={`px-2 py-1 rounded text-xs ${o.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-yellow-500/20 text-yellow-500'}`}>{o.status}</span>
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <button onClick={() => setEditingOrder(o)} className="p-2 text-zinc-400 hover:text-white transition-colors cursor-pointer" title="แก้ไข">
+                                      <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => setOrders(orders.filter(x => x.id !== o.id))} className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer" title="ลบ">
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {adminTab === 'settings' && (
+                  <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-white mb-6">ตั้งค่าทั่วไป (โลโก้แอพ / ชื่อร้านค้า)</h2>
+                    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-xl">
+                      {editingSettings && (
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-zinc-400 text-sm mb-2">URL ของโลโก้ (App / Loading Logo)</label>
+                            <input 
+                              type="text" 
+                              value={editingSettings.logo}
+                              onChange={(e) => setEditingSettings({...editingSettings, logo: e.target.value})}
+                              className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                              placeholder="URL รูปภาพ เช่น /logo.jpg หรือ http://..."
+                            />
+                            {editingSettings.logo && <img src={editingSettings.logo} alt="Preview" className="h-16 mt-2 object-contain bg-zinc-800 rounded p-1" />}
+                          </div>
+                          <div>
+                            <label className="block text-zinc-400 text-sm mb-2">ชื่อร้านค้า (Store Name)</label>
+                            <input 
+                              type="text" 
+                              value={editingSettings.title}
+                              onChange={(e) => setEditingSettings({...editingSettings, title: e.target.value})}
+                              className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                            />
+                          </div>
+                          <div className="pt-4 flex gap-4">
+                            <button 
+                              onClick={() => {
+                                setSiteSettings(editingSettings);
+                                alert("บันทึกการตั้งค่าเรียบร้อย");
+                              }}
+                              className="bg-tactical-red hover:bg-red-600 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                            >
+                              <Save className="w-4 h-4" /> บันทึก
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+
+                {adminTab === 'users' && (
+                  <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-white mb-6">จัดการผู้ใช้</h2>
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-x-auto">
+                      <table className="w-full text-left text-sm text-zinc-400 min-w-[500px]">
+                        <thead className="bg-zinc-950/50 text-zinc-300 uppercase font-medium border-b border-zinc-800">
+                          <tr>
+                            <th className="px-6 py-4">ผู้ใช้</th>
+                            <th className="px-6 py-4">สถานะ</th>
+                            <th className="px-6 py-4 text-right">จัดการ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800/50">
+                          {Object.keys(userPasswords).map(email => (
+                            <tr key={email} className="hover:bg-zinc-800/50 transition-colors">
+                              <td className="px-6 py-4 text-white font-medium flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-tactical-red uppercase border border-zinc-700">
+                                  {email.charAt(0)}
+                                </div>
+                                {email}
+                                {email === 'admin@kook.com' && (
+                                  <span className="px-2 py-0.5 bg-tactical-red/20 text-tactical-red rounded text-xs font-bold ml-2">ADMIN</span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  ใช้งานได้
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                {email !== 'admin@kook.com' && (
+                                  <button className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer" title="ลบบัญชี">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {Object.keys(userPasswords).length === 0 && (
+                            <tr>
+                              <td colSpan={3} className="px-6 py-8 text-center text-zinc-500">
+                                ไม่มีผู้ใช้ในระบบ
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+\n      {/* Product Editing Modal */}
+      <AnimatePresence>
+        {editingProduct && (
+          <div className="fixed inset-0 z-[210] flex justify-center items-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              onClick={() => setEditingProduct(null)}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-y-auto max-h-[90vh] z-10 hidden-scrollbar"
+            >
+              <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50 sticky top-0 z-20">
+                <h3 className="font-display font-bold text-xl text-white">แก้ไขสินค้า (Edit Product)</h3>
+                <button
+                  onClick={() => setEditingProduct(null)}
+                  className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-full text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-zinc-400 text-sm mb-2">รหัสสินค้า (Product ID)</label>
+                    <input 
+                      type="text" 
+                      value={editingProduct.id}
+                      onChange={(e) => setEditingProduct({...editingProduct, id: e.target.value})}
+                      className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 text-sm mb-2">ชื่อสินค้า</label>
+                    <input 
+                      type="text" 
+                      value={editingProduct.name}
+                      onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
+                      className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 text-sm mb-2">ราคา (บาท)</label>
+                    <input 
+                      type="number" 
+                      value={editingProduct.price}
+                      onChange={(e) => setEditingProduct({...editingProduct, price: parseInt(e.target.value) || 0})}
+                      className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 text-sm mb-2">หมวดหมู่</label>
+                  <select 
+                    value={editingProduct.category}
+                    onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
+                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red appearance-none"
+                  >
+                    <option value="ปืนเจล">ปืนเจล</option>
+                    <option value="อุปกรณ์เสริม">อุปกรณ์เสริม</option>
+                    <option value="ลูกกระสุนเจล">ลูกกระสุนเจล</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 text-sm mb-2">รายละเอียดสินค้า</label>
+                  <textarea 
+                    value={editingProduct.description}
+                    onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})}
+                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red h-24 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 text-sm mb-2">URL รูปภาพหลัก</label>
+                  <input 
+                    type="text" 
+                    value={editingProduct.image}
+                    onChange={(e) => setEditingProduct({...editingProduct, image: e.target.value})}
+                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                  />
+                  {editingProduct.image && <img src={editingProduct.image} alt="Preview" className="h-16 mt-2 object-cover rounded bg-zinc-800" />}
+                </div>
+
+                <div className="flex gap-6 pt-4 border-t border-zinc-800">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={editingProduct.isOffSale}
+                      onChange={(e) => setEditingProduct({...editingProduct, isOffSale: e.target.checked})}
+                      className="w-4 h-4 rounded bg-zinc-950 border-zinc-800 text-tactical-red focus:ring-tactical-red focus:ring-offset-zinc-900"
+                    />
+                    <span className="text-zinc-300 text-sm font-medium">หมดชั่วคราว</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={editingProduct.isComingSoon}
+                      onChange={(e) => setEditingProduct({...editingProduct, isComingSoon: e.target.checked})}
+                      className="w-4 h-4 rounded bg-zinc-950 border-zinc-800 text-tactical-red focus:ring-tactical-red focus:ring-offset-zinc-900"
+                    />
+                    <span className="text-zinc-300 text-sm font-medium">เร็วๆ นี้</span>
+                  </label>
+                </div>
+
+              </div>
+              <div className="p-6 border-t border-zinc-800 bg-zinc-950/50 flex justify-end gap-3 sticky bottom-0">
+                <button
+                  onClick={() => setEditingProduct(null)}
+                  className="px-6 py-2 text-zinc-400 hover:text-white font-medium transition-colors cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={() => handleSaveProduct(editingProduct)}
+                  className="bg-tactical-red hover:bg-red-600 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Save className="w-4 h-4" /> บันทึก
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      
+      {/* Order Editing Modal */}
+      <AnimatePresence>
+        {editingOrder && (
+          <div className="fixed inset-0 z-[210] flex justify-center items-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              onClick={() => setEditingOrder(null)}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-y-auto max-h-[90vh] z-10 hidden-scrollbar"
+            >
+              <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50 sticky top-0 z-20">
+                <h3 className="font-display font-bold text-xl text-white">แก้ไขจัดข้อมูลการสั่งซื้อ (Order)</h3>
+                <button
+                  onClick={() => setEditingOrder(null)}
+                  className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-full text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-zinc-400 text-sm mb-2">Order ID</label>
+                    <input 
+                      type="text" 
+                      value={editingOrder.id}
+                      onChange={(e) => setEditingOrder({...editingOrder, id: e.target.value})}
+                      className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 text-sm mb-2">Email ผู้สั่งซื้อ (ระบุให้ตรงกับผู้ใช้งานระบบ)</label>
+                    <input 
+                      type="text" 
+                      value={editingOrder.user}
+                      onChange={(e) => setEditingOrder({...editingOrder, user: e.target.value})}
+                      className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                      placeholder="email@example.com"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 text-sm mb-2">รายการสินค้า (คั่นด้วยลูกน้ำ ",")</label>
+                  <input 
+                    type="text" 
+                    value={editingOrder.items ? editingOrder.items.join(', ') : ''}
+                    onChange={(e) => setEditingOrder({...editingOrder, items: e.target.value.split(',').map(x => x.trim()).filter(Boolean)})}
+                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-zinc-400 text-sm mb-2">ยอดรวมสุทธิ (บาท)</label>
+                    <input 
+                      type="number" 
+                      value={editingOrder.total}
+                      onChange={(e) => setEditingOrder({...editingOrder, total: parseInt(e.target.value) || 0})}
+                      className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 text-sm mb-2">วันที่สั่งซื้อ</label>
+                    <input 
+                      type="date" 
+                      value={editingOrder.date}
+                      onChange={(e) => setEditingOrder({...editingOrder, date: e.target.value})}
+                      className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 text-sm mb-2">สถานะ</label>
+                    <select 
+                      value={editingOrder.status}
+                      onChange={(e) => setEditingOrder({...editingOrder, status: e.target.value})}
+                      className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red appearance-none"
+                    >
+                      <option value="Pending">Pending (รอชำระ)</option>
+                      <option value="Completed">Completed (สำเสร็จ)</option>
+                      <option value="Shipping">Shipping (กำลังส่ง)</option>
+                      <option value="Cancelled">Cancelled (ยกเลิก)</option>
+                    </select>
+                  </div>
+                </div>
+
+              </div>
+              <div className="p-6 border-t border-zinc-800 bg-zinc-950/50 flex justify-end gap-3 sticky bottom-0">
+                <button
+                  onClick={() => setEditingOrder(null)}
+                  className="px-6 py-2 text-zinc-400 hover:text-white font-medium transition-colors cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={() => handleSaveOrder(editingOrder)}
+                  className="bg-tactical-red hover:bg-red-600 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Save className="w-4 h-4" /> บันทึก
+                </button>
               </div>
             </motion.div>
           </div>
