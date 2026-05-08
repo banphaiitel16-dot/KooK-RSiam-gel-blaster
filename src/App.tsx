@@ -2139,9 +2139,19 @@ export default function App() {
                     onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
                     className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red appearance-none"
                   >
-                    <option value="ปืนเจล">ปืนเจล</option>
-                    <option value="อุปกรณ์เสริม">อุปกรณ์เสริม</option>
-                    <option value="ลูกกระสุนเจล">ลูกกระสุนเจล</option>
+                    <option value="" disabled>-- หมวดหมู่เพนท์บอลไฟฟ้า --</option>
+                    <option value="ปืนเจลไฟฟ้า">ปืนเจลไฟฟ้า (ทั่วไป)</option>
+                    {GUN_SUBCATEGORIES.map(c => <option key={c} value={c}>- {c}</option>)}
+                    
+                    <option value="" disabled>-- อุปกรณ์ตกแต่งและอื่นๆ --</option>
+                    <option value="อุปกรณ์เสริม">อุปกรณ์เสริม (ทั่วไป)</option>
+                    {ACCESSORY_SUBCATEGORIES.map(c => <option key={c} value={c}>- {c}</option>)}
+                    
+                    <option value="ชุดที่ชาร์จและแบตเตอรี่">ชุดที่ชาร์จและแบตเตอรี่ (ทั่วไป)</option>
+                    {BATTERY_SUBCATEGORIES.map(c => <option key={c} value={c}>- {c}</option>)}
+                    
+                    <option value="ลูกกระสุนเจล">ลูกกระสุนเจล (ทั่วไป)</option>
+                    {GEL_BALL_SUBCATEGORIES.map(c => <option key={c} value={c}>- {c}</option>)}
                   </select>
                 </div>
 
