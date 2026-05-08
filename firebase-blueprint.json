@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Gel blaster product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "image": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "isOffSale": { "type": "boolean" },
+        "isComingSoon": { "type": "boolean" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "videoUrl": { "type": "string" },
+        "reviews": { "type": "array", "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "user": { "type": "string" },
+            "rating": { "type": "number" },
+            "comment": { "type": "string" },
+            "date": { "type": "string" }
+          }
+        }}
+      },
+      "required": ["id", "name", "price", "image", "category"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "string" } },
+        "total": { "type": "number" },
+        "status": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "user", "items", "total", "status", "date"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global user settings",
+      "type": "object",
+      "properties": {
+        "logo": { "type": "string" },
+        "title": { "type": "string" }
+      },
+      "required": ["logo", "title"]
+    }
+  },
+  "firestore": {
+    "products/{productId}": {
+      "schema": { "$ref": "Product" },
+      "description": "Products directory"
+    },
+    "orders/{orderId}": {
+      "schema": { "$ref": "Order" },
+      "description": "Customer orders"
+    },
+    "settings/{settingId}": {
+      "schema": { "$ref": "SiteSettings" },
+      "description": "Site global settings"
+    }
+  }
+}

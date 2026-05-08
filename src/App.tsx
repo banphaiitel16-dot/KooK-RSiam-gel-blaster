@@ -5,7 +5,41 @@
 
 import React, { useState, useEffect } from "react";
 import localforage from "localforage";
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
+import { getFirestore, onSnapshot, collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
 import { motion, AnimatePresence } from "motion/react";
+
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const auth = getAuth(app);
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: any;
+}
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: { userId: auth.currentUser?.uid },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 import { Crosshair,
   MessageCircle,
   PiggyBank,
@@ -29,7 +63,6 @@ import { Crosshair,
   Check,
   Clock
 , Users, LayoutDashboard, BarChart3, Edit, Plus, Trash2, ShieldAlert, Save } from 'lucide-react';
-import productsData from "./data/products.json";
 import { Product, Review } from "./types";
 
 // link directly to the provided LINE OA
@@ -308,7 +341,7 @@ export default function App() {
   const [adminTab, setAdminTab] = useState("overview");
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot_password" | "email_sent" | "reset_password">("login");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot_password" | "email_sent">("login");
   const [captchaNum1, setCaptchaNum1] = useState(Math.floor(Math.random() * 9) + 1);
   const [captchaNum2, setCaptchaNum2] = useState(Math.floor(Math.random() * 9) + 1);
   const [captchaAnswer, setCaptchaAnswer] = useState("");
@@ -316,137 +349,180 @@ export default function App() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [authError, setAuthError] = useState("");
-  const [reviews, setReviews] = useState<Review[]>([
-    {
-      id: "1",
-      product_id: "gb-001",
-      user: "Somchai K.",
-      rating: 5,
-      comment: "ยิงสนุกมากครับ ปืนมีน้ำหนักดี งานประกอบเนียนมาก คุ้มราคา",
-      date: "2 วันก่อน",
-    },
-    {
-      id: "2",
-      product_id: "gb-001",
-      user: "Weerayut T.",
-      rating: 5,
-      comment: "ส่งไวมาก สั่งเมื่อวาน วันนี้ได้ของแล้ว แพ็คมาอย่างดีเลย",
-      date: "1 สัปดาห์ก่อน",
-    }
-  ]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [newReviewComment, setNewReviewComment] = useState("");
   const [newReviewRating, setNewReviewRating] = useState(5);
 
   
   const [siteSettings, setSiteSettings] = useState({ logo: '/logo.jpg', title: 'KooK-RSiam' });
   const [orders, setOrders] = useState<any[]>([]); // No mock data
-  const [products, setProducts] = useState<Product[]>(productsData);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   useEffect(() => {
-    const loadData = async () => {
+    let unsubs: any[] = [];
+    
+    // Auth Listener
+    const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser && fbUser.email) {
+        setUser({ email: fbUser.email });
+        loadAndMigrateData(); // Trigger migration if they just logged in
+      } else {
+        setUser(null);
+      }
+    });
+    unsubs.push(unsubAuth);
+
+    const loadAndMigrateData = async () => {
       try {
-        // Load or migrate products
-        let savedProducts = await localforage.getItem<Product[]>('products');
-        if (!savedProducts) {
-            const lsProducts = localStorage.getItem('products');
-            if (lsProducts) {
-                savedProducts = JSON.parse(lsProducts);
-                await localforage.setItem('products', savedProducts);
-            }
-        }
-        if (savedProducts && savedProducts.length > 0) setProducts(savedProducts);
+        const hasMigrated = localStorage.getItem('fb_migrated');
+        
+        if (!hasMigrated && auth.currentUser) {
+          // Migration from localforage to Firestore
+          let savedProducts = await localforage.getItem<Product[]>('products');
+          if (!savedProducts) {
+             const lsProducts = localStorage.getItem('products');
+             if (lsProducts) savedProducts = JSON.parse(lsProducts);
+          }
+          if (savedProducts && savedProducts.length > 0) {
+             await Promise.all(savedProducts.map(p => setDoc(doc(db, "products", p.id), p)));
+               
+             let savedSettings = await localforage.getItem<any>('siteSettings');
+             if (!savedSettings) {
+               const lsSettings = localStorage.getItem('siteSettings');
+               if (lsSettings) savedSettings = JSON.parse(lsSettings);
+             }
+             if (savedSettings) await setDoc(doc(db, "settings", "global"), savedSettings);
 
-        // Load or migrate siteSettings
-        let savedSettings = await localforage.getItem<{logo: string, title: string}>('siteSettings');
-        if (!savedSettings) {
-            const lsSettings = localStorage.getItem('siteSettings');
-            if (lsSettings) {
-                savedSettings = JSON.parse(lsSettings);
-                await localforage.setItem('siteSettings', savedSettings);
-            }
+             let savedOrders = await localforage.getItem<any[]>('orders');
+             if (!savedOrders) {
+               const lsOrders = localStorage.getItem('orders');
+               if (lsOrders) {
+                  savedOrders = JSON.parse(lsOrders);
+                  if(savedOrders) savedOrders = savedOrders.filter(o => o.id !== 'ORD-001' && o.id !== 'ORD-002');
+               }
+             }
+             if (savedOrders && savedOrders.length > 0) {
+                await Promise.all(savedOrders.map(o => setDoc(doc(db, "orders", o.id), o)));
+             }
+             localStorage.setItem('fb_migrated', 'true');
+             alert('ข้อมูลเก่าถูกอัปโหลดไปยังระบบ Firestore สำเร็จแล้ว!');
+          } else {
+             localStorage.setItem('fb_migrated', 'true'); // Nothing to migrate
+          }
         }
-        if (savedSettings) setSiteSettings(savedSettings);
-
-        // Load or migrate orders
-        let savedOrders = await localforage.getItem<any[]>('orders');
-        if (!savedOrders) {
-            const lsOrders = localStorage.getItem('orders');
-            if (lsOrders) {
-                savedOrders = JSON.parse(lsOrders);
-                // Filter out default mock orders during migration
-                if(savedOrders) {
-                  savedOrders = savedOrders.filter(o => o.id !== 'ORD-001' && o.id !== 'ORD-002');
-                }
-                await localforage.setItem('orders', savedOrders || []);
-            }
-        }
-        if (savedOrders) setOrders(savedOrders);
-
       } catch (e) {
-          console.error("Failed to load data from indexedDB:", e);
+         console.error("Migration check failed", e);
       }
       setIsDataLoaded(true);
+
+      // Setup Listeners
+      const unsubProducts = onSnapshot(collection(db, "products"), (snap) => {
+        if (!snap.empty) {
+          setProducts(snap.docs.map(d => d.data() as Product));
+        } else {
+          setProducts([]);
+        }
+      }, (err) => handleFirestoreError(err, OperationType.LIST, "products"));
+      unsubs.push(unsubProducts);
+
+      const unsubSettings = onSnapshot(doc(db, "settings", "global"), (snap) => {
+        if (snap.exists()) {
+          setSiteSettings(snap.data() as any);
+        }
+      }, (err) => handleFirestoreError(err, OperationType.GET, "settings/global"));
+      unsubs.push(unsubSettings);
+
+      const unsubOrders = onSnapshot(collection(db, "orders"), (snap) => {
+        setOrders(snap.docs.map(d => d.data() as any));
+      }, (err) => {
+        // May fail if not logged in due to rules, fail gracefully.
+        if (err.message.includes('permission')) {
+          setOrders([]);
+        } else {
+          handleFirestoreError(err, OperationType.LIST, "orders");
+        }
+      });
+      unsubs.push(unsubOrders);
+
+      const unsubReviews = onSnapshot(collection(db, "reviews"), (snap) => {
+        setReviews(snap.docs.map(d => d.data() as Review));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, "reviews"));
+      unsubs.push(unsubReviews);
+
+      const unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
+        setAllUsers(snap.docs.map(d => d.data() as {email: string, id: string}));
+      }, (err) => {
+        if (err.message.includes('permission')) {
+          setAllUsers([]);
+        } else {
+          handleFirestoreError(err, OperationType.LIST, "users");
+        }
+      });
+      unsubs.push(unsubUsers);
     };
-    loadData();
+
+    loadAndMigrateData();
+
+    return () => {
+      unsubs.forEach(u => u());
+    };
   }, []);
 
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [editingSettings, setEditingSettings] = useState<{logo: string, title: string} | null>(null);
   const [editingOrder, setEditingOrder] = useState<any>(null);
   
-  useEffect(() => {
-    if (isDataLoaded) {
-      localforage.setItem('products', products).catch(e => {
-        console.error("Failed to save products:", e);
-        alert("บันทึกข้อมูลไม่สำเร็จ รูปภาพอาจมีขนาดใหญ่เกินไป ลองลดขนาดหรือจำนวนรูปภาพ");
-      });
-    }
-  }, [products, isDataLoaded]);
-
-  useEffect(() => {
-    if (isDataLoaded) {
-      localforage.setItem('siteSettings', siteSettings).catch(e => console.error("Failed to save siteSettings:", e));
-    }
-  }, [siteSettings, isDataLoaded]);
-
-  useEffect(() => {
-    if (isDataLoaded) {
-      localforage.setItem('orders', orders).catch(e => console.error("Failed to save orders:", e));
-    }
-  }, [orders, isDataLoaded]);
+  // We remove localforage `useEffect` saving.
   
-  const handleSaveProduct = (p: any) => {
-    if (products.find(x => x.id === p.id)) {
-      setProducts(products.map(x => x.id === p.id ? p : x));
-    } else {
-      setProducts([p, ...products]);
+  const handleSaveProduct = async (p: any) => {
+    try {
+      if (!p.id) p.id = 'PROD-' + Date.now();
+      await setDoc(doc(db, "products", p.id), p);
+      setEditingProduct(null);
+    } catch(e) {
+      handleFirestoreError(e, OperationType.WRITE, `products/${p.id}`);
     }
-    setEditingProduct(null);
   };
 
-  const handleSaveOrder = (o: any) => {
-    if (orders.find((x:any) => x.id === o.id)) {
-      setOrders(orders.map((x:any) => x.id === o.id ? o : x));
-    } else {
-      setOrders([o, ...orders]);
+  const handleDeleteProduct = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "products", id));
+    } catch(e) {
+      handleFirestoreError(e, OperationType.DELETE, `products/${id}`);
     }
-    setEditingOrder(null);
   };
 
-  const [userPasswords, setUserPasswords] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem('userPasswords');
-    const parsed = saved ? JSON.parse(saved) : {};
-    // Add default admin account if not exists
-    if (!parsed['admin@kook.com']) {
-      parsed['admin@kook.com'] = 'admin1234';
+  const handleSaveOrder = async (o: any) => {
+    try {
+      if (!o.id) o.id = 'ORD-' + Date.now();
+      await setDoc(doc(db, "orders", o.id), o);
+      setEditingOrder(null);
+    } catch(e) {
+      handleFirestoreError(e, OperationType.WRITE, `orders/${o.id}`);
     }
-    return parsed;
-  });
+  };
 
-  useEffect(() => {
-    localStorage.setItem('userPasswords', JSON.stringify(userPasswords));
-  }, [userPasswords]);
+  const handleDeleteOrder = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "orders", id));
+    } catch(e) {
+      handleFirestoreError(e, OperationType.DELETE, `orders/${id}`);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (editingSettings) {
+      try {
+        await setDoc(doc(db, "settings", "global"), editingSettings);
+        setEditingSettings(null);
+      } catch(e) {
+        handleFirestoreError(e, OperationType.WRITE, `settings/global`);
+      }
+    }
+  };
+
+  const [allUsers, setAllUsers] = useState<{email: string, id: string}[]>([]);
   useEffect(() => {
     setCaptchaNum1(Math.floor(Math.random() * 9) + 1);
     setCaptchaNum2(Math.floor(Math.random() * 9) + 1);
@@ -647,14 +723,13 @@ export default function App() {
               {authMode === 'login' ? 'เข้าสู่ระบบ' : 
                authMode === 'register' ? 'สมัครสมาชิก' : 
                authMode === 'forgot_password' ? 'ลืมรหัสผ่าน' : 
-               authMode === 'email_sent' ? 'ตรวจสอบอีเมล' : 'ตั้งรหัสผ่านใหม่'}
+               'ตรวจสอบอีเมล'}
             </h3>
             <p className="text-zinc-400 text-sm text-center">
               {authMode === 'login' ? 'กรุณาเข้าสู่ระบบเพื่อใช้งาน KooK-RSiam' : 
                authMode === 'register' ? 'สมัครสมาชิกเพื่อเริ่มต้นใช้งานระบบ' : 
                authMode === 'forgot_password' ? 'กรุณากรอกอีเมลที่ใช้สมัครสมาชิก' :
-               authMode === 'email_sent' ? 'เราได้ส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณแล้ว (จำลอง)' :
-               'กรุณากรอกรหัสผ่านใหม่ของคุณ'}
+               'เราได้ส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณแล้ว'}
             </p>
           </div>
 
@@ -684,54 +759,61 @@ export default function App() {
             }
             
             if (authMode === 'forgot_password') {
-              if (userPasswords[loginEmail] === undefined) {
-                setAuthError("ไม่พบอีเมลนี้ในระบบ");
-                resetCurrentCaptcha();
+              if (loginEmail) {
+                sendPasswordResetEmail(auth, loginEmail)
+                  .then(() => {
+                    setAuthMode('email_sent');
+                  })
+                  .catch((error) => {
+                    setAuthError(error.message);
+                    resetCurrentCaptcha();
+                  });
                 return;
               }
-              setAuthMode('email_sent');
-              return;
-            }
-
-            if (authMode === 'reset_password') {
-              if (loginPassword.length < 6) {
-                setAuthError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
-                return;
-              }
-              setUserPasswords({ ...userPasswords, [loginEmail]: loginPassword });
-              setAuthMode('login');
-              setAuthError("เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบ");
-              setLoginPassword("");
-              resetCurrentCaptcha();
-              return;
             }
             
             if (loginEmail && loginPassword) {
               if (authMode === 'login') {
-                if (userPasswords[loginEmail] === undefined) {
-                  setAuthError("ไม่พบบัญชีผู้ใช้นี้ กรุณาสมัครสมาชิก");
-                  resetCurrentCaptcha();
-                  return;
-                }
-                if (userPasswords[loginEmail] !== loginPassword) {
-                  setAuthError("รหัสผ่านไม่ถูกต้อง");
-                  resetCurrentCaptcha();
-                  return;
-                }
-                handleLoginSuccess(loginEmail);
+                signInWithEmailAndPassword(auth, loginEmail, loginPassword)
+                  .then(() => {
+                    handleLoginSuccess(loginEmail);
+                  })
+                  .catch((error) => {
+                    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                      setAuthError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+                    } else {
+                      setAuthError(error.message);
+                    }
+                    resetCurrentCaptcha();
+                  });
               } else if (authMode === 'register') {
-                if (userPasswords[loginEmail] !== undefined) {
-                  setAuthError("อีเมลนี้ถูกใช้งานแล้ว");
-                  resetCurrentCaptcha();
-                  return;
-                }
                 if (loginPassword.length < 6) {
                   setAuthError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
                   resetCurrentCaptcha();
                   return;
                 }
-                setUserPasswords({ ...userPasswords, [loginEmail]: loginPassword });
-                handleLoginSuccess(loginEmail);
+                import('firebase/auth').then(({ createUserWithEmailAndPassword }) => {
+                  createUserWithEmailAndPassword(auth, loginEmail, loginPassword)
+                    .then(async (userCredential) => {
+                      try {
+                        await setDoc(doc(db, "users", userCredential.user.uid), {
+                          email: loginEmail,
+                          id: userCredential.user.uid
+                        });
+                      } catch (e) {
+                        console.error('Failed to create user record', e);
+                      }
+                      handleLoginSuccess(loginEmail);
+                    })
+                    .catch((error) => {
+                      if (error.code === 'auth/email-already-in-use') {
+                        setAuthError("อีเมลนี้ถูกใช้งานแล้ว");
+                      } else {
+                        setAuthError(error.message);
+                      }
+                      resetCurrentCaptcha();
+                    });
+                });
               }
               
               setLoginEmail("");
@@ -753,11 +835,11 @@ export default function App() {
               </div>
             )}
             
-            {(authMode === 'login' || authMode === 'register' || authMode === 'reset_password') && (
+            {(authMode === 'login' || authMode === 'register') && (
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium text-zinc-300">
-                    {authMode === 'reset_password' ? 'รหัสผ่านใหม่' : 'รหัสผ่าน'}
+                    รหัสผ่าน
                   </label>
                   {authMode === 'login' && <a href="#" onClick={(e) => { e.preventDefault(); setAuthMode('forgot_password'); setAuthError(''); }} className="flex-shrink-0 text-xs text-tactical-red hover:underline">ลืมรหัสผ่าน?</a>}
                 </div>
@@ -767,7 +849,7 @@ export default function App() {
                   value={loginPassword}
                   onChange={e => setLoginPassword(e.target.value)}
                   className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white outline-none focus:outline-none focus:border-tactical-red focus:ring-1 focus:ring-tactical-red transition-all"
-                  placeholder={authMode === 'reset_password' ? "รหัสผ่านใหม่" : "รหัสผ่านของคุณ"}
+                  placeholder="รหัสผ่านของคุณ"
                 />
               </div>
             )}
@@ -814,9 +896,6 @@ export default function App() {
 
             {authMode === 'email_sent' ? (
               <div className="flex flex-col gap-3 mt-2">
-                <button type="button" onClick={() => setAuthMode('reset_password')} className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3.5 px-4 rounded-xl border border-zinc-700 transition-colors cursor-pointer">
-                  จำลองการคลิกลิงก์ในอีเมล
-                </button>
                 <button type="button" onClick={() => { setAuthMode('login'); setAuthError(''); }} className="w-full text-zinc-400 hover:text-white font-medium py-2 transition-colors cursor-pointer">
                   กลับไปหน้าเข้าสู่ระบบ
                 </button>
@@ -829,22 +908,20 @@ export default function App() {
                 >
                   {authMode === 'login' ? 'เข้าสู่ระบบ' : 
                    authMode === 'register' ? 'สมัครสมาชิก' : 
-                   authMode === 'forgot_password' ? 'ส่งลิงก์ยืนยัน' : 'ตั้งรหัสผ่านใหม่'}
+                   'ส่งลิงก์ยืนยัน'}
                 </button>
                 
-                {authMode !== 'reset_password' && (
-                  <div className="text-center mt-2">
-                    <p className="text-sm text-zinc-500">
-                      {authMode === 'login' ? (
-                        <>ยังไม่มีบัญชีใช่หรือไม่? <button type="button" onClick={() => { setAuthMode('register'); setAuthError(''); }} className="text-tactical-red hover:underline focus:outline-none font-medium ml-1 cursor-pointer">สมัครสมาชิก</button></>
-                      ) : authMode === 'register' ? (
-                        <>มีบัญชีอยู่แล้วใช่หรือไม่? <button type="button" onClick={() => { setAuthMode('login'); setAuthError(''); }} className="text-tactical-red hover:underline focus:outline-none font-medium ml-1 cursor-pointer">เข้าสู่ระบบ</button></>
-                      ) : (
-                        <button type="button" onClick={() => { setAuthMode('login'); setAuthError(''); }} className="text-zinc-400 hover:text-white hover:underline focus:outline-none font-medium mt-2 cursor-pointer">กลับไปหน้าเข้าสู่ระบบ</button>
-                      )}
-                    </p>
-                  </div>
-                )}
+                <div className="text-center mt-2">
+                  <p className="text-sm text-zinc-500">
+                    {authMode === 'login' ? (
+                      <>ยังไม่มีบัญชีใช่หรือไม่? <button type="button" onClick={() => { setAuthMode('register'); setAuthError(''); }} className="text-tactical-red hover:underline focus:outline-none font-medium ml-1 cursor-pointer">สมัครสมาชิก</button></>
+                    ) : authMode === 'register' ? (
+                      <>มีบัญชีอยู่แล้วใช่หรือไม่? <button type="button" onClick={() => { setAuthMode('login'); setAuthError(''); }} className="text-tactical-red hover:underline focus:outline-none font-medium ml-1 cursor-pointer">เข้าสู่ระบบ</button></>
+                    ) : (
+                      <button type="button" onClick={() => { setAuthMode('login'); setAuthError(''); }} className="text-zinc-400 hover:text-white hover:underline focus:outline-none font-medium mt-2 cursor-pointer">กลับไปหน้าเข้าสู่ระบบ</button>
+                    )}
+                  </p>
+                </div>
               </>
             )}
           </form>
@@ -1630,7 +1707,7 @@ export default function App() {
                     รีวิวจากผู้ซื้อ (4.8/5)
                   </h4>
                   <div className="space-y-4">
-                    {reviews.filter(r => r.product_id === selectedProduct.id || r.product_id === "gb-001" /* show mock on all for visual */).map((review, i) => (
+                    {reviews.filter(r => r.product_id === selectedProduct.id).map((review, i) => (
                       <div key={review.id + i} className="border-b border-zinc-800 pb-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
@@ -1668,8 +1745,9 @@ export default function App() {
                         className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-tactical-red mb-3 min-h-[80px]"
                       />
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (!newReviewComment.trim()) return;
+                          
                           const newReview = {
                             id: Date.now().toString(),
                             product_id: selectedProduct.id,
@@ -1678,9 +1756,14 @@ export default function App() {
                             comment: newReviewComment,
                             date: "เมื่อสักครู่",
                           };
-                          setReviews([newReview, ...reviews]);
-                          setNewReviewComment("");
-                          setNewReviewRating(5);
+                          
+                          try {
+                            await setDoc(doc(db, "reviews", newReview.id), newReview);
+                            setNewReviewComment("");
+                            setNewReviewRating(5);
+                          } catch(e) {
+                            handleFirestoreError(e, OperationType.WRITE, `reviews/${newReview.id}`);
+                          }
                         }}
                         className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm font-bold transition-colors cursor-pointer"
                       >
@@ -1882,7 +1965,7 @@ export default function App() {
                           </div>
                           <div>
                             <p className="text-zinc-400 text-sm">ผู้ใช้ทั้งหมด</p>
-                            <h3 className="text-2xl font-bold text-white">{Object.keys(userPasswords).length}</h3>
+                            <h3 className="text-2xl font-bold text-white">{allUsers.length}</h3>
                           </div>
                         </div>
                       </div>
@@ -1959,7 +2042,7 @@ export default function App() {
                                 <button onClick={() => setEditingProduct(p)} className="p-2 text-zinc-400 hover:text-white transition-colors cursor-pointer" title="แก้ไข">
                                   <Edit className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => setProducts(products.filter((x:any) => x.id !== p.id))} className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer" title="ลบ">
+                                <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer" title="ลบ">
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               </td>
@@ -2036,7 +2119,7 @@ export default function App() {
                                     <button onClick={() => setEditingOrder(o)} className="p-2 text-zinc-400 hover:text-white transition-colors cursor-pointer" title="แก้ไข">
                                       <Edit className="w-4 h-4" />
                                     </button>
-                                    <button onClick={() => setOrders(orders.filter(x => x.id !== o.id))} className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer" title="ลบ">
+                                    <button onClick={() => handleDeleteOrder(o.id)} className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer" title="ลบ">
                                       <Trash2 className="w-4 h-4" />
                                     </button>
                                   </td>
@@ -2113,16 +2196,13 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-800/50">
-                          {Object.keys(userPasswords).map(email => (
+                          {allUsers.map(({email, id}) => (
                             <tr key={email} className="hover:bg-zinc-800/50 transition-colors">
                               <td className="px-6 py-4 text-white font-medium flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-tactical-red uppercase border border-zinc-700">
-                                  {email.charAt(0)}
+                                  {email?.charAt(0) || 'U'}
                                 </div>
                                 {email}
-                                {email === 'admin@kook.com' && (
-                                  <span className="px-2 py-0.5 bg-tactical-red/20 text-tactical-red rounded text-xs font-bold ml-2">ADMIN</span>
-                                )}
                               </td>
                               <td className="px-6 py-4">
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500">
@@ -2131,15 +2211,13 @@ export default function App() {
                                 </span>
                               </td>
                               <td className="px-6 py-4 text-right">
-                                {email !== 'admin@kook.com' && (
-                                  <button className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer" title="ลบบัญชี">
+                                  <button onClick={() => alert("ไม่สามารถลบผู้ใช้ได้")} className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer" title="ลบบัญชี">
                                     <Trash2 className="w-4 h-4" />
                                   </button>
-                                )}
                               </td>
                             </tr>
                           ))}
-                          {Object.keys(userPasswords).length === 0 && (
+                          {allUsers.length === 0 && (
                             <tr>
                               <td colSpan={3} className="px-6 py-8 text-center text-zinc-500">
                                 ไม่มีผู้ใช้ในระบบ
@@ -2273,7 +2351,7 @@ export default function App() {
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);
                       if (files.length > 0) {
-                        Promise.all(files.map(file => compressImage(file))).then(base64Images => {
+                        Promise.all(files.map(file => compressImage(file as File))).then(base64Images => {
                           setEditingProduct({...editingProduct, images: [...(editingProduct.images || []), ...base64Images]});
                         });
                       }
