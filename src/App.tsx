@@ -2188,7 +2188,7 @@ export default function App() {
                           reader.onloadend = () => resolve(reader.result as string);
                           reader.readAsDataURL(file);
                         }))).then(base64Images => {
-                          setEditingProduct({...editingProduct, images: base64Images});
+                          setEditingProduct({...editingProduct, images: [...(editingProduct.images || []), ...base64Images]});
                         });
                       }
                     }}
@@ -2197,7 +2197,15 @@ export default function App() {
                   {editingProduct.images && editingProduct.images.length > 0 && (
                     <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
                        {editingProduct.images.map((img: string, idx: number) => (
-                         <img key={idx} src={img} alt={`Preview ${idx}`} className="h-16 w-16 object-cover rounded bg-zinc-800 flex-shrink-0" />
+                         <div key={idx} className="relative inline-block flex-shrink-0 group">
+                           <img src={img} alt={`Preview ${idx}`} className="h-16 w-16 object-cover rounded bg-zinc-800" />
+                           <button 
+                             onClick={(e) => { e.preventDefault(); const newImages = [...editingProduct.images!]; newImages.splice(idx, 1); setEditingProduct({...editingProduct, images: newImages}); }}
+                             className="absolute -top-1 -right-1 bg-tactical-red rounded-full w-5 h-5 flex items-center justify-center text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                           >
+                             <X className="w-3 h-3" />
+                           </button>
+                         </div>
                        ))}
                     </div>
                   )}
