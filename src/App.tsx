@@ -234,6 +234,45 @@ const renderTitle = (title: string, navbar: boolean = false) => {
   return title;
 };
 
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const max = 800; // max size to prevent localStorage quota issues
+
+        if (width > height) {
+          if (width > max) {
+            height = Math.round(height * (max / width));
+            width = max;
+          }
+        } else {
+          if (height > max) {
+            width = Math.round(width * (max / height));
+            height = max;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.8)); // 0.8 quality jpeg
+        } else {
+          // Fallback if canvas context fails
+          resolve(event.target?.result as string);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function App() {
   const [activeCategory, setActiveCategory] = useState("ทั้งหมด");
   const [priceCategory, setPriceCategory] = useState("ทั้งหมด");
@@ -321,15 +360,28 @@ export default function App() {
   const [editingOrder, setEditingOrder] = useState<any>(null);
   
   useEffect(() => {
-    localStorage.setItem('products', JSON.stringify(products));
+    try {
+      localStorage.setItem('products', JSON.stringify(products));
+    } catch (e) {
+      console.error("Failed to save products:", e);
+      alert("พื้นที่จัดเก็บข้อมูลเต็ม! รูปภาพอาจมีขนาดใหญ่เกินไป กรุณาลดขนาดรูป หรือใช้ลิงก์แทน");
+    }
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem('siteSettings', JSON.stringify(siteSettings));
+    try {
+      localStorage.setItem('siteSettings', JSON.stringify(siteSettings));
+    } catch (e) {
+      console.error("Failed to save siteSettings:", e);
+    }
   }, [siteSettings]);
 
   useEffect(() => {
-    localStorage.setItem('orders', JSON.stringify(orders));
+    try {
+      localStorage.setItem('orders', JSON.stringify(orders));
+    } catch (e) {
+      console.error("Failed to save orders:", e);
+    }
   }, [orders]);
   
   const handleSaveProduct = (p: any) => {
@@ -1980,11 +2032,9 @@ export default function App() {
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    setEditingSettings({...editingSettings, logo: reader.result as string});
-                                  };
-                                  reader.readAsDataURL(file);
+                                  compressImage(file).then(compressedUrl => {
+                                    setEditingSettings({...editingSettings, logo: compressedUrl});
+                                  });
                                 }
                               }}
                               className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 rounded-lg px-4 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-tactical-red file:text-white hover:file:bg-tactical-red-hover cursor-pointer"
@@ -2172,11 +2222,9 @@ export default function App() {
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setEditingProduct({...editingProduct, image: reader.result as string});
-                        };
-                        reader.readAsDataURL(file);
+                        compressImage(file).then(compressedUrl => {
+                          setEditingProduct({...editingProduct, image: compressedUrl});
+                        });
                       }
                     }}
                     className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 rounded-lg px-4 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-tactical-red file:text-white hover:file:bg-tactical-red-hover cursor-pointer"
@@ -2193,11 +2241,7 @@ export default function App() {
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);
                       if (files.length > 0) {
-                        Promise.all(files.map(file => new Promise<string>((resolve) => {
-                          const reader = new FileReader();
-                          reader.onloadend = () => resolve(reader.result as string);
-                          reader.readAsDataURL(file);
-                        }))).then(base64Images => {
+                        Promise.all(files.map(file => compressImage(file))).then(base64Images => {
                           setEditingProduct({...editingProduct, images: [...(editingProduct.images || []), ...base64Images]});
                         });
                       }
