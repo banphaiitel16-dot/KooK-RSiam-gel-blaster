@@ -1973,15 +1973,23 @@ export default function App() {
                       {editingSettings && (
                         <div className="space-y-4">
                           <div>
-                            <label className="block text-zinc-400 text-sm mb-2">URL ของโลโก้ (App / Loading Logo)</label>
+                            <label className="block text-zinc-400 text-sm mb-2">อัพโหลดโลโก้ (App / Loading Logo)</label>
                             <input 
-                              type="text" 
-                              value={editingSettings.logo}
-                              onChange={(e) => setEditingSettings({...editingSettings, logo: e.target.value})}
-                              className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
-                              placeholder="URL รูปภาพ เช่น /logo.jpg หรือ http://..."
+                              type="file" 
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setEditingSettings({...editingSettings, logo: reader.result as string});
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                              className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 rounded-lg px-4 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-tactical-red file:text-white hover:file:bg-tactical-red-hover cursor-pointer"
                             />
-                            {editingSettings.logo && <img src={editingSettings.logo} alt="Preview" className="h-16 mt-2 object-contain bg-zinc-800 rounded p-1" />}
+                            {editingSettings.logo && <img src={editingSettings.logo} alt="Logo preview" className="mt-4 h-16 object-contain rounded bg-zinc-800 p-1" />}
                           </div>
                           <div>
                             <label className="block text-zinc-400 text-sm mb-2">ชื่อร้านค้า (Store Name)</label>
@@ -2147,14 +2155,52 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-zinc-400 text-sm mb-2">URL รูปภาพหลัก</label>
+                  <label className="block text-zinc-400 text-sm mb-2">อัพโหลดรูปภาพหลัก</label>
                   <input 
-                    type="text" 
-                    value={editingProduct.image}
-                    onChange={(e) => setEditingProduct({...editingProduct, image: e.target.value})}
-                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setEditingProduct({...editingProduct, image: reader.result as string});
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 rounded-lg px-4 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-tactical-red file:text-white hover:file:bg-tactical-red-hover cursor-pointer"
                   />
                   {editingProduct.image && <img src={editingProduct.image} alt="Preview" className="h-16 mt-2 object-cover rounded bg-zinc-800" />}
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 text-sm mb-2">อัพโหลดรูปภาพเพิ่มเติม (เลือกได้หลายรูป)</label>
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length > 0) {
+                        Promise.all(files.map(file => new Promise<string>((resolve) => {
+                          const reader = new FileReader();
+                          reader.onloadend = () => resolve(reader.result as string);
+                          reader.readAsDataURL(file);
+                        }))).then(base64Images => {
+                          setEditingProduct({...editingProduct, images: base64Images});
+                        });
+                      }
+                    }}
+                    className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 rounded-lg px-4 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700 cursor-pointer"
+                  />
+                  {editingProduct.images && editingProduct.images.length > 0 && (
+                    <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
+                       {editingProduct.images.map((img: string, idx: number) => (
+                         <img key={idx} src={img} alt={`Preview ${idx}`} className="h-16 w-16 object-cover rounded bg-zinc-800 flex-shrink-0" />
+                       ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-6 pt-4 border-t border-zinc-800">
