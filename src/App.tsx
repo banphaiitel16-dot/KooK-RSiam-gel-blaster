@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import localforage from "localforage";
 import { motion, AnimatePresence } from "motion/react";
 import { Crosshair,
   MessageCircle,
@@ -337,52 +338,83 @@ export default function App() {
   const [newReviewRating, setNewReviewRating] = useState(5);
 
   
-  const [siteSettings, setSiteSettings] = useState(() => {
-    const saved = localStorage.getItem('siteSettings');
-    return saved ? JSON.parse(saved) : { logo: '/logo.jpg', title: 'KooK-RSiam' };
-  });
-  
-  const [orders, setOrders] = useState<any[]>(() => {
-    const saved = localStorage.getItem('orders');
-    return saved ? JSON.parse(saved) : [
-      { id: 'ORD-001', user: 'Somchai K.', items: ['gb-001'], total: 2990, status: 'Completed', date: '2026-05-01' },
-      { id: 'ORD-002', user: 'Weerayut T.', items: ['acc-001'], total: 450, status: 'Pending', date: '2026-05-05' }
-    ];
-  });
+  const [siteSettings, setSiteSettings] = useState({ logo: '/logo.jpg', title: 'KooK-RSiam' });
+  const [orders, setOrders] = useState<any[]>([]); // No mock data
+  const [products, setProducts] = useState<Product[]>(productsData);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('products');
-    return saved ? JSON.parse(saved) : productsData;
-  });
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load or migrate products
+        let savedProducts = await localforage.getItem<Product[]>('products');
+        if (!savedProducts) {
+            const lsProducts = localStorage.getItem('products');
+            if (lsProducts) {
+                savedProducts = JSON.parse(lsProducts);
+                await localforage.setItem('products', savedProducts);
+            }
+        }
+        if (savedProducts && savedProducts.length > 0) setProducts(savedProducts);
+
+        // Load or migrate siteSettings
+        let savedSettings = await localforage.getItem<{logo: string, title: string}>('siteSettings');
+        if (!savedSettings) {
+            const lsSettings = localStorage.getItem('siteSettings');
+            if (lsSettings) {
+                savedSettings = JSON.parse(lsSettings);
+                await localforage.setItem('siteSettings', savedSettings);
+            }
+        }
+        if (savedSettings) setSiteSettings(savedSettings);
+
+        // Load or migrate orders
+        let savedOrders = await localforage.getItem<any[]>('orders');
+        if (!savedOrders) {
+            const lsOrders = localStorage.getItem('orders');
+            if (lsOrders) {
+                savedOrders = JSON.parse(lsOrders);
+                // Filter out default mock orders during migration
+                if(savedOrders) {
+                  savedOrders = savedOrders.filter(o => o.id !== 'ORD-001' && o.id !== 'ORD-002');
+                }
+                await localforage.setItem('orders', savedOrders || []);
+            }
+        }
+        if (savedOrders) setOrders(savedOrders);
+
+      } catch (e) {
+          console.error("Failed to load data from indexedDB:", e);
+      }
+      setIsDataLoaded(true);
+    };
+    loadData();
+  }, []);
 
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [editingSettings, setEditingSettings] = useState<{logo: string, title: string} | null>(null);
   const [editingOrder, setEditingOrder] = useState<any>(null);
   
   useEffect(() => {
-    try {
-      localStorage.setItem('products', JSON.stringify(products));
-    } catch (e) {
-      console.error("Failed to save products:", e);
-      alert("พื้นที่จัดเก็บข้อมูลเต็ม! รูปภาพอาจมีขนาดใหญ่เกินไป กรุณาลดขนาดรูป หรือใช้ลิงก์แทน");
+    if (isDataLoaded) {
+      localforage.setItem('products', products).catch(e => {
+        console.error("Failed to save products:", e);
+        alert("บันทึกข้อมูลไม่สำเร็จ รูปภาพอาจมีขนาดใหญ่เกินไป ลองลดขนาดหรือจำนวนรูปภาพ");
+      });
     }
-  }, [products]);
+  }, [products, isDataLoaded]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('siteSettings', JSON.stringify(siteSettings));
-    } catch (e) {
-      console.error("Failed to save siteSettings:", e);
+    if (isDataLoaded) {
+      localforage.setItem('siteSettings', siteSettings).catch(e => console.error("Failed to save siteSettings:", e));
     }
-  }, [siteSettings]);
+  }, [siteSettings, isDataLoaded]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('orders', JSON.stringify(orders));
-    } catch (e) {
-      console.error("Failed to save orders:", e);
+    if (isDataLoaded) {
+      localforage.setItem('orders', orders).catch(e => console.error("Failed to save orders:", e));
     }
-  }, [orders]);
+  }, [orders, isDataLoaded]);
   
   const handleSaveProduct = (p: any) => {
     if (products.find(x => x.id === p.id)) {
@@ -1871,8 +1903,8 @@ export default function App() {
                             <BarChart3 className="w-6 h-6" />
                           </div>
                           <div>
-                            <p className="text-zinc-400 text-sm">ยอดสั่งซื้อ (จำลอง)</p>
-                            <h3 className="text-2xl font-bold text-white">12</h3>
+                            <p className="text-zinc-400 text-sm">ยอดสั่งซื้อ</p>
+                            <h3 className="text-2xl font-bold text-white">{orders.length}</h3>
                           </div>
                         </div>
                       </div>
