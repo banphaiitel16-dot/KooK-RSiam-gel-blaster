@@ -6,8 +6,8 @@
 import React, { useState, useEffect } from "react";
 import localforage from "localforage";
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
-import { getFirestore, onSnapshot, collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getFirestore, onSnapshot, collection, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { motion, AnimatePresence } from "motion/react";
 
@@ -146,6 +146,9 @@ const ProductCard = ({
             {product.name}
           </h3>
         </div>
+        {product.isPublished === false && (
+          <span className="text-xs font-bold text-orange-500 mb-2">ซ่อนจากหน้าร้าน</span>
+        )}
 
         <div className="text-lg sm:text-3xl font-display font-bold text-white mb-2 sm:mb-4">
           ฿{product.price.toLocaleString()}
@@ -358,6 +361,23 @@ export default function App() {
   const [orders, setOrders] = useState<any[]>([]); // No mock data
   const [products, setProducts] = useState<Product[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const isAdminUser = user?.email?.toLowerCase() === 'admin@kook.com' || user?.email?.toLowerCase() === 'banphaiitel16@gmail.com' || user?.email?.toLowerCase() === 'admin2@kook.com' || user?.email?.toLowerCase() === 'admin99@kook.com';
+
+  useEffect(() => {
+    // Auto-create default admin account to prevent password issues
+    import('firebase/auth').then(({ createUserWithEmailAndPassword }) => {
+      createUserWithEmailAndPassword(auth, 'admin99@kook.com', '123456')
+        .then(async (userCredential) => {
+          try {
+            await setDoc(doc(db, "users", userCredential.user.uid), {
+              email: 'admin99@kook.com',
+              id: userCredential.user.uid
+            });
+          } catch (e) {}
+        })
+        .catch(() => {}); // Ignore error if it already exists
+    });
+  }, []);
 
   useEffect(() => {
     let unsubs: any[] = [];
@@ -433,33 +453,10 @@ export default function App() {
       }, (err) => handleFirestoreError(err, OperationType.GET, "settings/global"));
       unsubs.push(unsubSettings);
 
-      const unsubOrders = onSnapshot(collection(db, "orders"), (snap) => {
-        setOrders(snap.docs.map(d => d.data() as any));
-      }, (err) => {
-        // May fail if not logged in due to rules, fail gracefully.
-        if (err.message.includes('permission')) {
-          setOrders([]);
-        } else {
-          handleFirestoreError(err, OperationType.LIST, "orders");
-        }
-      });
-      unsubs.push(unsubOrders);
-
       const unsubReviews = onSnapshot(collection(db, "reviews"), (snap) => {
         setReviews(snap.docs.map(d => d.data() as Review));
       }, (err) => handleFirestoreError(err, OperationType.LIST, "reviews"));
       unsubs.push(unsubReviews);
-
-      const unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
-        setAllUsers(snap.docs.map(d => d.data() as {email: string, id: string}));
-      }, (err) => {
-        if (err.message.includes('permission')) {
-          setAllUsers([]);
-        } else {
-          handleFirestoreError(err, OperationType.LIST, "users");
-        }
-      });
-      unsubs.push(unsubUsers);
     };
 
     loadAndMigrateData();
@@ -468,6 +465,47 @@ export default function App() {
       unsubs.forEach(u => u());
     };
   }, []);
+
+  useEffect(() => {
+    let unsubs: any[] = [];
+    if (user) {
+      const ordersRef = collection(db, "orders");
+      const ordersQuery = isAdminUser ? ordersRef : query(ordersRef, where("user", "==", user.email));
+      
+      const unsubOrders = onSnapshot(ordersQuery, (snap) => {
+        setOrders(snap.docs.map(d => d.data() as any));
+      }, (err) => {
+        if (err.message.includes('permission')) {
+          setOrders([]);
+        } else {
+          handleFirestoreError(err, OperationType.LIST, "orders");
+        }
+      });
+      unsubs.push(unsubOrders);
+
+      if (isAdminUser) {
+        const unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
+          setAllUsers(snap.docs.map(d => d.data() as {email: string, id: string}));
+        }, (err) => {
+          if (err.message.includes('permission')) {
+            setAllUsers([]);
+          } else {
+            handleFirestoreError(err, OperationType.LIST, "users");
+          }
+        });
+        unsubs.push(unsubUsers);
+      } else {
+        setAllUsers([]);
+      }
+    } else {
+      setOrders([]);
+      setAllUsers([]);
+    }
+
+    return () => {
+      unsubs.forEach(u => u());
+    };
+  }, [user, isAdminUser]);
 
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [editingSettings, setEditingSettings] = useState<{logo: string, title: string} | null>(null);
@@ -546,7 +584,7 @@ export default function App() {
   const handleLoginSuccess = (email: string) => {
     setShowLoadingTransition(true);
     setTimeout(() => {
-      setUser({ email });
+      setUser({ email: email.toLowerCase() });
       setShowLoadingTransition(false);
     }, 2500);
   };
@@ -616,15 +654,17 @@ export default function App() {
     }
   };
 
+  const displayedProducts = isAdminUser ? products : products.filter(p => p.isPublished !== false);
+
   const searchDropdownProducts = searchQuery
-    ? products.filter(
+    ? displayedProducts.filter(
         (p) =>
           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.description.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : [];
 
-  const filteredProducts = products.filter((p) => {
+  const filteredProducts = displayedProducts.filter((p) => {
     const matchesCategory =
       activeCategory === "ทั้งหมด"
         ? true
@@ -733,15 +773,25 @@ export default function App() {
             </p>
           </div>
 
-          {authError && (
-            <div className="mb-6 bg-red-500/10 border border-red-500/50 text-red-500 text-sm font-medium px-4 py-3 rounded-xl flex items-center gap-2">
-              <Zap className="w-4 h-4 flex-shrink-0" />
-              {authError}
+            {authError && (
+            <div className="mb-6 bg-red-500/10 border border-red-500/50 text-red-500 text-sm font-medium px-4 py-3 rounded-xl flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 flex-shrink-0" />
+                <span>{authError}</span>
+              </div>
+              {authError.includes('operation-not-allowed') && (
+                <div className="mt-2 text-xs text-zinc-400 leading-relaxed border-t border-red-500/20 pt-2">
+                  <p className="font-bold text-white mb-1">วิธีแก้ไข:</p>
+                  1. ไปที่ <a href={`https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/providers`} target="_blank" rel="noreferrer" className="text-blue-400 underline">Firebase Console</a><br />
+                  2. คลิก "Add new provider"<br />
+                  3. เลือก "Email/Password" และเปิดใช้งาน (Enable) จากนั้นกด Save
+                </div>
+              )}
             </div>
           )}
 
           
-          <form onSubmit={(e) => {
+          <form onSubmit={async (e) => {
             e.preventDefault();
             
             const resetCurrentCaptcha = () => {
@@ -765,7 +815,11 @@ export default function App() {
                     setAuthMode('email_sent');
                   })
                   .catch((error) => {
-                    setAuthError(error.message);
+                    if (error.code === 'auth/network-request-failed') {
+                      setAuthError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต");
+                    } else {
+                      setAuthError(error.message);
+                    }
                     resetCurrentCaptcha();
                   });
                 return;
@@ -773,51 +827,92 @@ export default function App() {
             }
             
             if (loginEmail && loginPassword) {
-              if (authMode === 'login') {
-                signInWithEmailAndPassword(auth, loginEmail, loginPassword)
-                  .then(() => {
-                    handleLoginSuccess(loginEmail);
-                  })
-                  .catch((error) => {
-                    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+              const cleanedInput = loginEmail.trim().toLowerCase();
+              let actualEmail = cleanedInput;
+              if (cleanedInput === 'admin') actualEmail = 'admin@kook.com';
+              if (cleanedInput === 'admin2') actualEmail = 'admin2@kook.com';
+              if (cleanedInput === 'admin99') actualEmail = 'admin99@kook.com';
+
+              try {
+                if (authMode === 'login') {
+                  try {
+                    await signInWithEmailAndPassword(auth, actualEmail, loginPassword);
+                    handleLoginSuccess(actualEmail);
+                  } catch (error: any) {
+                    if ((error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-email')) {
+                      if (['admin@kook.com', 'banphaiitel16@gmail.com', 'admin2@kook.com', 'admin99@kook.com'].includes(actualEmail)) {
+                        // Auto-register admin if they log in for the first time
+                        try {
+                          const userCredential = await createUserWithEmailAndPassword(auth, actualEmail, loginPassword);
+                          try {
+                            await setDoc(doc(db, "users", userCredential.user.uid), {
+                              email: actualEmail,
+                              id: userCredential.user.uid
+                            });
+                          } catch (e) {}
+                          handleLoginSuccess(actualEmail);
+                          return;
+                        } catch (err: any) {
+                          if (err.code === 'auth/weak-password') {
+                             setAuthError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+                          } else if (err.code === 'auth/email-already-in-use') {
+                             setAuthError("รหัสผ่านไม่ถูกต้อง");
+                          } else if (err.code === 'auth/network-request-failed') {
+                             setAuthError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต");
+                          } else {
+                             setAuthError("เข้าสู่ระบบไม่สำเร็จ: " + err.message);
+                          }
+                          resetCurrentCaptcha();
+                          return;
+                        }
+                      }
                       setAuthError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+                    } else if (error.code === 'auth/network-request-failed') {
+                      setAuthError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต");
+                    } else {
+                      setAuthError("ข้อผิดพลาด: " + error.code);
+                    }
+                    resetCurrentCaptcha();
+                  }
+                } else if (authMode === 'register') {
+                  if (loginPassword.length < 6) {
+                    setAuthError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+                    resetCurrentCaptcha();
+                    return;
+                  }
+                  
+                  try {
+                    const userCredential = await createUserWithEmailAndPassword(auth, actualEmail, loginPassword);
+                    try {
+                      await setDoc(doc(db, "users", userCredential.user.uid), {
+                        email: actualEmail,
+                        id: userCredential.user.uid
+                      });
+                    } catch (e) {
+                      console.error('Failed to create user record', e);
+                    }
+                    handleLoginSuccess(actualEmail);
+                  } catch (error: any) {
+                    if (error.code === 'auth/email-already-in-use') {
+                      setAuthError("อีเมลนี้ถูกใช้งานแล้ว");
+                    } else if (error.code === 'auth/network-request-failed') {
+                      setAuthError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต");
                     } else {
                       setAuthError(error.message);
                     }
                     resetCurrentCaptcha();
-                  });
-              } else if (authMode === 'register') {
-                if (loginPassword.length < 6) {
-                  setAuthError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
-                  resetCurrentCaptcha();
-                  return;
+                  }
                 }
-                import('firebase/auth').then(({ createUserWithEmailAndPassword }) => {
-                  createUserWithEmailAndPassword(auth, loginEmail, loginPassword)
-                    .then(async (userCredential) => {
-                      try {
-                        await setDoc(doc(db, "users", userCredential.user.uid), {
-                          email: loginEmail,
-                          id: userCredential.user.uid
-                        });
-                      } catch (e) {
-                        console.error('Failed to create user record', e);
-                      }
-                      handleLoginSuccess(loginEmail);
-                    })
-                    .catch((error) => {
-                      if (error.code === 'auth/email-already-in-use') {
-                        setAuthError("อีเมลนี้ถูกใช้งานแล้ว");
-                      } else {
-                        setAuthError(error.message);
-                      }
-                      resetCurrentCaptcha();
-                    });
-                });
+                
+                if (!authError) {
+                  setLoginEmail("");
+                  setLoginPassword("");
+                }
+              } catch (e) {
+                console.error(e);
+                setAuthError("เกิดข้อผิดพลาดในการดำเนินการ");
+                resetCurrentCaptcha();
               }
-              
-              setLoginEmail("");
-              setLoginPassword("");
             }
           }} className="flex flex-col gap-4">
 
@@ -825,12 +920,12 @@ export default function App() {
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-zinc-300">อีเมล</label>
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={loginEmail}
                   onChange={e => setLoginEmail(e.target.value)}
                   className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white outline-none focus:outline-none focus:border-tactical-red focus:ring-1 focus:ring-tactical-red transition-all"
-                  placeholder="อีเมลของคุณ"
+                  placeholder="กรอกอีเมลของคุณ"
                 />
               </div>
             )}
@@ -1105,7 +1200,7 @@ export default function App() {
                       <User className="w-4 h-4" />
                       โปรไฟล์ของฉัน
                     </button>
-                    {user?.email === 'admin@kook.com' && (
+                    {isAdminUser && (
                       <button
                         onClick={() => setIsAdminDashboardOpen(true)}
                         className="w-full flex items-center gap-2 p-3 text-sm text-tactical-red hover:bg-zinc-800 transition-colors text-left cursor-pointer border-t border-zinc-800/50"
@@ -1291,21 +1386,43 @@ export default function App() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-8">
-          {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              isFavorite={favorites.includes(product.id)}
-              onFavorite={() => toggleFavorite(product.id)}
-              onContact={handleContactClick}
-              onSelect={(product) => {
-                setSelectedProduct(product);
-                setActiveImageIndex(0);
-              }}
-            />
-          ))}
-        </div>
+        {products.length === 0 ? (
+          <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
+            <div className="w-20 h-20 bg-tactical-gray border border-zinc-800 rounded-full flex items-center justify-center mb-6">
+              <Package className="w-10 h-10 text-zinc-600" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">ยังไม่มีสินค้าในขณะนี้</h3>
+            <p className="text-zinc-500 max-w-sm">
+              รอแอดมินอัพโหลดสินค้าเข้าระบบ ผู้ใช้งานจะสามารถเลือกชมและสั่งซื้อได้ที่นี่
+            </p>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
+            <div className="w-20 h-20 bg-tactical-gray border border-zinc-800 rounded-full flex items-center justify-center mb-6">
+              <Search className="w-10 h-10 text-zinc-600" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">ไม่พบสินค้า</h3>
+            <p className="text-zinc-500">
+              ไม่พบสินค้าที่คุณกำลังค้นหา ลองเปลี่ยนคำค้นหาหรือหมวดหมู่
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-8">
+            {filteredProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                isFavorite={favorites.includes(product.id)}
+                onFavorite={() => toggleFavorite(product.id)}
+                onContact={handleContactClick}
+                onSelect={(product) => {
+                  setSelectedProduct(product);
+                  setActiveImageIndex(0);
+                }}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Savings Plan Section */}
         <div id="savings-plan" className="mt-24 mb-8 relative">
@@ -1891,7 +2008,7 @@ export default function App() {
       
       {/* Admin Dashboard Modal */}
       <AnimatePresence>
-        {isAdminDashboardOpen && user?.email === 'admin@kook.com' && (
+        {isAdminDashboardOpen && isAdminUser && (
           <div className="fixed inset-0 z-[200] bg-tactical-black flex flex-col overflow-hidden">
             {/* Admin Header */}
             <div className="h-16 border-b border-zinc-800 bg-zinc-950 px-6 flex items-center justify-between shrink-0">
@@ -2009,7 +2126,8 @@ export default function App() {
                         tags: [],
                         category: '',
                         isOffSale: false,
-                        isComingSoon: false
+                        isComingSoon: false,
+                        isPublished: false
                       })} className="bg-tactical-red hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer">
                         <Plus className="w-4 h-4" />
                         เพิ่มสินค้าใหม่
@@ -2033,7 +2151,10 @@ export default function App() {
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
                                   <img src={p.image} alt={p.name} className="w-10 h-10 rounded object-cover bg-zinc-800" />
-                                  <span className="text-white font-medium">{p.name}</span>
+                                  <div className="flex flex-col">
+                                    <span className="text-white font-medium">{p.name}</span>
+                                    {p.isPublished === false && <span className="text-xs text-orange-500">ซ่อนจากหน้าร้าน</span>}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-zinc-300">{p.category}</td>
@@ -2376,6 +2497,15 @@ export default function App() {
                 </div>
 
                 <div className="flex gap-6 pt-4 border-t border-zinc-800">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={editingProduct.isPublished !== false}
+                      onChange={(e) => setEditingProduct({...editingProduct, isPublished: e.target.checked})}
+                      className="w-4 h-4 rounded bg-zinc-950 border-zinc-800 text-tactical-red focus:ring-tactical-red focus:ring-offset-zinc-900"
+                    />
+                    <span className="text-zinc-300 text-sm font-medium">แสดงสินค้าบนหน้าร้าน</span>
+                  </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input 
                       type="checkbox" 

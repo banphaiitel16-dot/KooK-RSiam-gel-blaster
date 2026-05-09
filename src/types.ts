@@ -9,6 +9,7 @@ export interface Product {
   category: string;
   isOffSale?: boolean;
   isComingSoon?: boolean;
+  isPublished?: boolean;
 }
 
 export interface Review {
