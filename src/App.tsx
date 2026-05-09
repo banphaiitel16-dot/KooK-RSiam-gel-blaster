@@ -1047,7 +1047,7 @@ export default function App() {
     >
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-tactical-black/80 backdrop-blur-md border-b border-zinc-800/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             <div className="flex items-center gap-4">
               <button
@@ -1346,7 +1346,7 @@ export default function App() {
         <div className="absolute inset-0 tactical-grid opacity-30" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-tactical-red/20 blur-[120px] rounded-full pointer-events-none" />
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1370,7 +1370,7 @@ export default function App() {
       </div>
 
       {/* Product Grid */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative">
         <div className="flex flex-col md:flex-row items-start md:items-end justify-between mb-8 gap-4">
           <div>
             <h2 className="font-display text-3xl font-bold text-white mb-2 uppercase flex items-center gap-3">
@@ -1573,7 +1573,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-zinc-800 bg-tactical-gray/50 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3 opacity-50 hover:opacity-100 transition-opacity">
             <span className="font-display font-bold text-xl tracking-tighter text-white">
               {renderTitle(siteSettings.title)}
