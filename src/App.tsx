@@ -340,6 +340,7 @@ export default function App() {
     }
     return null;
   });
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
   const [adminTab, setAdminTab] = useState("overview");
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -357,7 +358,13 @@ export default function App() {
   const [newReviewRating, setNewReviewRating] = useState(5);
 
   
-  const [siteSettings, setSiteSettings] = useState({ logo: '/logo.jpg', title: 'KooK-RSiam' });
+  const [siteSettings, setSiteSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('siteSettingsCache');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return { logo: '/logo.jpg', title: 'KooK-RSiam' };
+  });
   const [orders, setOrders] = useState<any[]>([]); // No mock data
   const [products, setProducts] = useState<Product[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -448,7 +455,9 @@ export default function App() {
 
       const unsubSettings = onSnapshot(doc(db, "settings", "global"), (snap) => {
         if (snap.exists()) {
-          setSiteSettings(snap.data() as any);
+          const data = snap.data();
+          setSiteSettings(data as any);
+          localStorage.setItem('siteSettingsCache', JSON.stringify(data));
         }
       }, (err) => handleFirestoreError(err, OperationType.GET, "settings/global"));
       unsubs.push(unsubSettings);
@@ -553,7 +562,7 @@ export default function App() {
     if (editingSettings) {
       try {
         await setDoc(doc(db, "settings", "global"), editingSettings);
-        setEditingSettings(null);
+        // Do not clear editingSettings so the form remains visible
       } catch(e) {
         handleFirestoreError(e, OperationType.WRITE, `settings/global`);
       }
@@ -1185,38 +1194,50 @@ export default function App() {
               </button>
 
               {user ? (
-                <div className="relative group">
-                  <button className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-tactical-red text-white font-bold cursor-pointer hover:bg-red-600 transition-colors">
+                <div className="relative">
+                  <button onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)} className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-tactical-red text-white font-bold cursor-pointer hover:bg-red-600 transition-colors">
                     {user.email.charAt(0).toUpperCase()}
                   </button>
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50">
-                    <div className="p-3 border-b border-zinc-800 text-sm text-white truncate">
-                      {user.email}
-                    </div>
-                    <button
-                      onClick={() => setIsProfileOpen(true)}
-                      className="w-full flex items-center gap-2 p-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors text-left cursor-pointer"
-                    >
-                      <User className="w-4 h-4" />
-                      โปรไฟล์ของฉัน
-                    </button>
-                    {isAdminUser && (
-                      <button
-                        onClick={() => setIsAdminDashboardOpen(true)}
-                        className="w-full flex items-center gap-2 p-3 text-sm text-tactical-red hover:bg-zinc-800 transition-colors text-left cursor-pointer border-t border-zinc-800/50"
-                      >
-                        <ShieldAlert className="w-4 h-4" />
-                        ระบบหลังบ้าน
-                      </button>
+                  <AnimatePresence>
+                    {isAccountMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsAccountMenuOpen(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute right-0 top-full mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50 pointer-events-auto"
+                        >
+                          <div className="p-3 border-b border-zinc-800 text-sm text-white truncate bg-zinc-950/50">
+                            {user.email}
+                          </div>
+                          <button
+                            onClick={() => { setIsAccountMenuOpen(false); setIsProfileOpen(true); }}
+                            className="w-full flex items-center gap-2 p-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors text-left cursor-pointer"
+                          >
+                            <User className="w-4 h-4" />
+                            โปรไฟล์ของฉัน
+                          </button>
+                          {isAdminUser && (
+                            <button
+                              onClick={() => { setIsAccountMenuOpen(false); setIsAdminDashboardOpen(true); }}
+                              className="w-full flex items-center gap-2 p-3 text-sm text-tactical-red hover:bg-zinc-800 transition-colors text-left cursor-pointer border-t border-zinc-800/50"
+                            >
+                              <ShieldAlert className="w-4 h-4" />
+                              ระบบหลังบ้าน
+                            </button>
+                          )}
+                          <button
+                            onClick={() => { setIsAccountMenuOpen(false); setUser(null); }}
+                            className="w-full flex items-center gap-2 p-3 text-sm text-red-400 hover:bg-zinc-800 transition-colors text-left cursor-pointer"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            ออกจากระบบ
+                          </button>
+                        </motion.div>
+                      </>
                     )}
-                    <button
-                      onClick={() => setUser(null)}
-                      className="w-full flex items-center gap-2 p-3 text-sm text-red-400 hover:bg-zinc-800 transition-colors text-left cursor-pointer"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      ออกจากระบบ
-                    </button>
-                  </div>
+                  </AnimatePresence>
                 </div>
               ) : null}
             </div>
@@ -1360,16 +1381,41 @@ export default function App() {
           </div>
           <div className="flex flex-col sm:flex-row gap-4 ml-auto">
             {/* Desktop Categories */}
-            <div className="hidden lg:flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-               {CATEGORIES.map(category => (
-                 <button
-                   key={category.id}
-                   onClick={() => setActiveCategory(category.id)}
-                   className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors ${activeCategory === category.id ? "bg-tactical-red text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"}`}
-                 >
-                   {category.label}
-                 </button>
-               ))}
+            <div className="hidden lg:flex flex-col gap-3">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                 {CATEGORIES.map(category => (
+                   <button
+                     key={category.id}
+                     onClick={() => setActiveCategory(category.id)}
+                     className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors ${
+                       activeCategory === category.id || CATEGORIES.find(c => c.id === category.id)?.sub?.includes(activeCategory)
+                         ? "bg-tactical-red text-white" 
+                         : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"
+                     }`}
+                   >
+                     {category.label}
+                   </button>
+                 ))}
+              </div>
+              
+              {/* Desktop Subcategories */}
+              {CATEGORIES.find(c => c.id === activeCategory || c.sub?.includes(activeCategory))?.sub && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide justify-end">
+                  {CATEGORIES.find(c => c.id === activeCategory || c.sub?.includes(activeCategory))?.sub?.map(sub => (
+                    <button
+                      key={sub}
+                      onClick={() => setActiveCategory(sub)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                        activeCategory === sub 
+                          ? "bg-zinc-700 text-white border border-zinc-600" 
+                          : "bg-zinc-900/50 border border-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                      }`}
+                    >
+                      {sub}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 p-1.5 rounded-lg">
               <span className="text-zinc-500 text-sm font-medium px-2">ช่วงราคา:</span>
@@ -1407,7 +1453,7 @@ export default function App() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-8">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
             {filteredProducts.map((product) => (
               <ProductCard
                 key={product.id}
@@ -2288,8 +2334,8 @@ export default function App() {
                           </div>
                           <div className="pt-4 flex gap-4">
                             <button 
-                              onClick={() => {
-                                setSiteSettings(editingSettings);
+                              onClick={async () => {
+                                await handleSaveSettings();
                                 alert("บันทึกการตั้งค่าเรียบร้อย");
                               }}
                               className="bg-tactical-red hover:bg-red-600 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors cursor-pointer"
