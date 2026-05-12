@@ -108,7 +108,7 @@ const ProductCard = ({
       <div className="relative h-40 sm:h-64 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-t from-tactical-gray via-transparent to-transparent z-10" />
         <img
-          src={product.image}
+          src={product.image || undefined}
           alt={product.name}
           className={`w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ${product.isOffSale || product.isComingSoon ? "grayscale opacity-70" : ""}`}
         />
@@ -203,9 +203,7 @@ const ProductCard = ({
 const GUN_SUBCATEGORIES = [
   "ปืนพก",
   "ปืนไรเฟิลจู่โจม",
-  "Sniper",
   "ลูกซอง",
-  "ปืน LMG",
   "ปืนกลมือ",
 ];
 
@@ -368,7 +366,7 @@ export default function App() {
   const [orders, setOrders] = useState<any[]>([]); // No mock data
   const [products, setProducts] = useState<Product[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const isAdminUser = user?.email?.toLowerCase() === 'admin@kook.com' || user?.email?.toLowerCase() === 'banphaiitel16@gmail.com' || user?.email?.toLowerCase() === 'admin2@kook.com' || user?.email?.toLowerCase() === 'admin99@kook.com';
+  const isAdminUser = user?.email?.toLowerCase() === 'admin@kook.com' || user?.email?.toLowerCase() === 'banphaiitel16@gmail.com' || user?.email?.toLowerCase() === 'admin2@kook.com' || user?.email?.toLowerCase() === 'admin99@kook.com' || user?.email?.toLowerCase() === 'assistant@kook.com';
 
   useEffect(() => {
     // Auto-create default admin account to prevent password issues
@@ -378,6 +376,17 @@ export default function App() {
           try {
             await setDoc(doc(db, "users", userCredential.user.uid), {
               email: 'admin99@kook.com',
+              id: userCredential.user.uid
+            });
+          } catch (e) {}
+        })
+        .catch(() => {}); // Ignore error if it already exists
+
+      createUserWithEmailAndPassword(auth, 'assistant@kook.com', '123456')
+        .then(async (userCredential) => {
+          try {
+            await setDoc(doc(db, "users", userCredential.user.uid), {
+              email: 'assistant@kook.com',
               id: userCredential.user.uid
             });
           } catch (e) {}
@@ -728,7 +737,7 @@ export default function App() {
             className="w-40 h-40 md:w-56 md:h-56 rounded-[2rem] overflow-hidden flex items-center justify-center bg-black border border-zinc-800 shadow-[0_0_50px_rgba(255,255,255,0.05)]"
           >
             <img 
-              src={siteSettings.logo} 
+              src={siteSettings.logo || undefined} 
               alt="Logo" 
               className="w-full h-full object-cover" 
               onError={(e) => {
@@ -1144,7 +1153,7 @@ export default function App() {
                               }}
                             >
                               <img
-                                src={product.image}
+                                src={product.image || undefined}
                                 alt={product.name}
                                 className="w-12 h-12 object-cover rounded-md flex-shrink-0"
                               />
@@ -1748,10 +1757,10 @@ export default function App() {
                 <div className="relative flex-grow h-64 sm:h-80 md:h-[calc(100%-80px)]">
                   <img
                     src={
-                      selectedProduct.images &&
+                      (selectedProduct.images &&
                       selectedProduct.images.length > 0
                         ? selectedProduct.images[activeImageIndex]
-                        : selectedProduct.image
+                        : selectedProduct.image) || undefined
                     }
                     alt={selectedProduct.name}
                     className={`w-full h-full object-cover ${selectedProduct.isOffSale || selectedProduct.isComingSoon ? "grayscale opacity-70" : ""}`}
@@ -1808,7 +1817,7 @@ export default function App() {
                           className={`relative w-16 h-16 sm:w-20 sm:h-full flex-shrink-0 rounded-md overflow-hidden cursor-pointer border-2 transition-all duration-200 ${activeImageIndex === idx ? "border-tactical-red opacity-100" : "border-zinc-800 opacity-50 hover:opacity-100 hover:border-zinc-600"}`}
                         >
                           <img
-                            src={img}
+                            src={img || undefined}
                             alt={`thumbnail ${idx + 1}`}
                             className="w-full h-full object-cover"
                           />
@@ -2196,7 +2205,7 @@ export default function App() {
                               <td className="px-6 py-4 font-mono text-xs">{p.id}</td>
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
-                                  <img src={p.image} alt={p.name} className="w-10 h-10 rounded object-cover bg-zinc-800" />
+                                  <img src={p.image || undefined} alt={p.name} className="w-10 h-10 rounded object-cover bg-zinc-800" />
                                   <div className="flex flex-col">
                                     <span className="text-white font-medium">{p.name}</span>
                                     {p.isPublished === false && <span className="text-xs text-orange-500">ซ่อนจากหน้าร้าน</span>}
@@ -2321,7 +2330,7 @@ export default function App() {
                               }}
                               className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 rounded-lg px-4 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-tactical-red file:text-white hover:file:bg-tactical-red-hover cursor-pointer"
                             />
-                            {editingSettings.logo && <img src={editingSettings.logo} alt="Logo preview" className="mt-4 h-16 object-contain rounded bg-zinc-800 p-1" />}
+                            {editingSettings.logo && <img src={editingSettings.logo || undefined} alt="Logo preview" className="mt-4 h-16 object-contain rounded bg-zinc-800 p-1" />}
                           </div>
                           <div>
                             <label className="block text-zinc-400 text-sm mb-2">ชื่อร้านค้า (Store Name)</label>
@@ -2506,7 +2515,7 @@ export default function App() {
                     }}
                     className="w-full bg-zinc-950 border border-zinc-800 text-zinc-400 rounded-lg px-4 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-tactical-red file:text-white hover:file:bg-tactical-red-hover cursor-pointer"
                   />
-                  {editingProduct.image && <img src={editingProduct.image} alt="Preview" className="h-16 mt-2 object-cover rounded bg-zinc-800" />}
+                  {editingProduct.image && <img src={editingProduct.image || undefined} alt="Preview" className="h-16 mt-2 object-cover rounded bg-zinc-800" />}
                 </div>
 
                 <div>
@@ -2529,7 +2538,7 @@ export default function App() {
                     <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
                        {editingProduct.images.map((img: string, idx: number) => (
                          <div key={idx} className="relative inline-block flex-shrink-0 group">
-                           <img src={img} alt={`Preview ${idx}`} className="h-16 w-16 object-cover rounded bg-zinc-800" />
+                           <img src={img || undefined} alt={`Preview ${idx}`} className="h-16 w-16 object-cover rounded bg-zinc-800" />
                            <button 
                              onClick={(e) => { e.preventDefault(); const newImages = [...editingProduct.images!]; newImages.splice(idx, 1); setEditingProduct({...editingProduct, images: newImages}); }}
                              className="absolute -top-1 -right-1 bg-tactical-red rounded-full w-5 h-5 flex items-center justify-center text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity"
@@ -2740,7 +2749,7 @@ export default function App() {
               <div className="p-6">
                 {contactProduct && (
                   <div className="mb-6 bg-zinc-950 border border-zinc-800 p-4 rounded-xl flex items-center gap-3">
-                    <img src={contactProduct.image} alt={contactProduct.name} className="w-12 h-12 rounded bg-zinc-800 object-cover" />
+                    <img src={contactProduct.image || undefined} alt={contactProduct.name} className="w-12 h-12 rounded bg-zinc-800 object-cover" />
                     <div>
                       <div className="text-xs text-zinc-500 font-bold mb-0.5">
                         {contactMode === 'buy' ? 'สั่งซื้อสินค้า' : contactMode === 'save' ? 'แจ้งออมเงิน' : 'สอบถาม'}
