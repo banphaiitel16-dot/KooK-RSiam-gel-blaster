@@ -1701,16 +1701,23 @@ export default function App() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 lg:gap-8">
-            {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                isFavorite={favorites.includes(product.id)}
-                onFavorite={handleFavoriteToggle}
-                onContact={handleContactClick}
-                onSelect={handleProductSelect}
-              />
-            ))}
+            {(activeCategory === "ทั้งหมด" &&
+            priceCategory === "ทั้งหมด" &&
+            !deferredSearchQuery
+              ? filteredProducts.filter((p) => p.price >= 1000)
+              : filteredProducts
+            )
+              .slice(0, 18)
+              .map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  isFavorite={favorites.includes(product.id)}
+                  onFavorite={handleFavoriteToggle}
+                  onContact={handleContactClick}
+                  onSelect={handleProductSelect}
+                />
+              ))}
           </div>
         )}
 
@@ -2067,7 +2074,7 @@ export default function App() {
                           การรับประกัน
                         </div>
                         <div className="text-white font-medium text-xs">
-                          รับประกัน 1 ปี
+                          รับประกัน 5 วัน
                         </div>
                       </div>
                       <div className="bg-zinc-900/50 border border-zinc-800/50 p-3 rounded-lg">
@@ -2076,7 +2083,7 @@ export default function App() {
                           การจัดส่ง
                         </div>
                         <div className="text-white font-medium text-xs">
-                          จัดส่งด่วนพิเศษ
+                          ธรรมดา
                         </div>
                       </div>
                     </div>
@@ -2860,7 +2867,7 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-      \n {/* Product Editing Modal */}
+      {/* Product Editing Modal */}
       <AnimatePresence>
         {editingProduct && (
           <div className="fixed inset-0 z-[210] flex justify-center items-center p-4">
