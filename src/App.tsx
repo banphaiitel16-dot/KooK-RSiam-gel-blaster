@@ -353,25 +353,17 @@ export default function App() {
   const [chickenEffectEnabled, setChickenEffectEnabled] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showLoadingTransition, setShowLoadingTransition] = useState(false);
-  const [user, setUser] = useState<{ email: string } | null>(() => {
-    const savedSession = localStorage.getItem("userSession");
-    if (savedSession) {
-      try {
-        const parsed = JSON.parse(savedSession);
-        if (parsed.expiresAt && parsed.expiresAt > Date.now()) {
-          return { email: parsed.email };
-        } else {
-          localStorage.removeItem("userSession");
-        }
-      } catch (e) {}
-    }
-    return null;
-  });
+  const [user, setUser] = useState<{ email: string } | null>(null);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
   const [adminTab, setAdminTab] = useState("overview");
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeCategory, priceCategory, searchQuery]);
   const [authMode, setAuthMode] = useState<
     "login" | "register" | "forgot_password" | "email_sent"
   >("login");
@@ -408,136 +400,52 @@ export default function App() {
     user?.email?.toLowerCase() === "assistant@kook.com";
 
   useEffect(() => {
-    // Auto-create default admin account to prevent password issues
-    import("firebase/auth").then(({ createUserWithEmailAndPassword }) => {
-      createUserWithEmailAndPassword(auth, "admin99@kook.com", "123456")
-        .then(async (userCredential) => {
-          try {
-            await setDoc(doc(db, "users", userCredential.user.uid), {
-              email: "admin99@kook.com",
-              id: userCredential.user.uid,
-            });
-          } catch (e) {}
-        })
-        .catch(() => {}); // Ignore error if it already exists
-
-      createUserWithEmailAndPassword(auth, "assistant@kook.com", "123456")
-        .then(async (userCredential) => {
-          try {
-            await setDoc(doc(db, "users", userCredential.user.uid), {
-              email: "assistant@kook.com",
-              id: userCredential.user.uid,
-            });
-          } catch (e) {}
-        })
-        .catch(() => {}); // Ignore error if it already exists
-    });
-  }, []);
-
-  useEffect(() => {
     let unsubs: any[] = [];
 
     // Auth Listener
     const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
       if (fbUser && fbUser.email) {
         setUser({ email: fbUser.email });
-        loadAndMigrateData(); // Trigger migration if they just logged in
       } else {
         setUser(null);
       }
     });
     unsubs.push(unsubAuth);
 
-    const loadAndMigrateData = async () => {
-      try {
-        const hasMigrated = localStorage.getItem("fb_migrated");
+    setIsDataLoaded(true);
 
-        if (!hasMigrated && auth.currentUser) {
-          // Migration from localforage to Firestore
-          let savedProducts = await localforage.getItem<Product[]>("products");
-          if (!savedProducts) {
-            const lsProducts = localStorage.getItem("products");
-            if (lsProducts) savedProducts = JSON.parse(lsProducts);
-          }
-          if (savedProducts && savedProducts.length > 0) {
-            await Promise.all(
-              savedProducts.map((p) => setDoc(doc(db, "products", p.id), p)),
-            );
+    // Setup Listeners
+    const unsubProducts = onSnapshot(
+      collection(db, "products"),
+      (snap) => {
+        setProducts(snap.docs.map((d) => d.data() as Product));
+      },
+      (err) => handleFirestoreError(err, OperationType.LIST, "products"),
+    );
+    unsubs.push(unsubProducts);
 
-            let savedSettings = await localforage.getItem<any>("siteSettings");
-            if (!savedSettings) {
-              const lsSettings = localStorage.getItem("siteSettings");
-              if (lsSettings) savedSettings = JSON.parse(lsSettings);
-            }
-            if (savedSettings)
-              await setDoc(doc(db, "settings", "global"), savedSettings);
-
-            let savedOrders = await localforage.getItem<any[]>("orders");
-            if (!savedOrders) {
-              const lsOrders = localStorage.getItem("orders");
-              if (lsOrders) {
-                savedOrders = JSON.parse(lsOrders);
-                if (savedOrders)
-                  savedOrders = savedOrders.filter(
-                    (o) => o.id !== "ORD-001" && o.id !== "ORD-002",
-                  );
-              }
-            }
-            if (savedOrders && savedOrders.length > 0) {
-              await Promise.all(
-                savedOrders.map((o) => setDoc(doc(db, "orders", o.id), o)),
-              );
-            }
-            localStorage.setItem("fb_migrated", "true");
-            alert("ข้อมูลเก่าถูกอัปโหลดไปยังระบบ Firestore สำเร็จแล้ว!");
-          } else {
-            localStorage.setItem("fb_migrated", "true"); // Nothing to migrate
-          }
+    const unsubSettings = onSnapshot(
+      doc(db, "settings", "global"),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setSiteSettings(data as any);
+          localStorage.setItem("siteSettingsCache", JSON.stringify(data));
         }
-      } catch (e) {
-        console.error("Migration check failed", e);
-      }
-      setIsDataLoaded(true);
+      },
+      (err) =>
+        handleFirestoreError(err, OperationType.GET, "settings/global"),
+    );
+    unsubs.push(unsubSettings);
 
-      // Setup Listeners
-      const unsubProducts = onSnapshot(
-        collection(db, "products"),
-        (snap) => {
-          if (!snap.empty) {
-            setProducts(snap.docs.map((d) => d.data() as Product));
-          } else {
-            setProducts([]);
-          }
-        },
-        (err) => handleFirestoreError(err, OperationType.LIST, "products"),
-      );
-      unsubs.push(unsubProducts);
-
-      const unsubSettings = onSnapshot(
-        doc(db, "settings", "global"),
-        (snap) => {
-          if (snap.exists()) {
-            const data = snap.data();
-            setSiteSettings(data as any);
-            localStorage.setItem("siteSettingsCache", JSON.stringify(data));
-          }
-        },
-        (err) =>
-          handleFirestoreError(err, OperationType.GET, "settings/global"),
-      );
-      unsubs.push(unsubSettings);
-
-      const unsubReviews = onSnapshot(
-        collection(db, "reviews"),
-        (snap) => {
-          setReviews(snap.docs.map((d) => d.data() as Review));
-        },
-        (err) => handleFirestoreError(err, OperationType.LIST, "reviews"),
-      );
-      unsubs.push(unsubReviews);
-    };
-
-    loadAndMigrateData();
+    const unsubReviews = onSnapshot(
+      collection(db, "reviews"),
+      (snap) => {
+        setReviews(snap.docs.map((d) => d.data() as Review));
+      },
+      (err) => handleFirestoreError(err, OperationType.LIST, "reviews"),
+    );
+    unsubs.push(unsubReviews);
 
     return () => {
       unsubs.forEach((u) => u());
@@ -601,6 +509,9 @@ export default function App() {
   const [editingSettings, setEditingSettings] = useState<{
     logo: string;
     title: string;
+    savingsPlanEnabled?: boolean;
+    savingsPlanHeadline?: string;
+    savingsPlanDesc?: string;
   } | null>(null);
   const [editingOrder, setEditingOrder] = useState<any>(null);
 
@@ -837,6 +748,16 @@ export default function App() {
     });
   }, [displayedProducts, activeCategory, priceCategory, deferredSearchQuery]);
 
+  const finalProducts = React.useMemo(() => {
+    return activeCategory === "ทั้งหมด" &&
+      priceCategory === "ทั้งหมด" &&
+      !deferredSearchQuery
+      ? filteredProducts.filter((p) => p.price >= 1000)
+      : filteredProducts;
+  }, [activeCategory, priceCategory, deferredSearchQuery, filteredProducts]);
+
+  const totalPages = Math.ceil(finalProducts.length / 15);
+
   if (showLoadingTransition) {
     return (
       <div className="min-h-screen bg-tactical-black font-sans flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -958,6 +879,15 @@ export default function App() {
           <form
             onSubmit={async (e) => {
               e.preventDefault();
+
+              if (authMode === "login" || authMode === "register") {
+                if (parseInt(captchaAnswer) !== captchaNum1 + captchaNum2) {
+                  setCaptchaError(true);
+                  setAuthError("คำตอบ CAPTCHA ไม่ถูกต้อง");
+                  return;
+                }
+                setCaptchaError(false);
+              }
 
               if (authMode === "forgot_password") {
                 if (loginEmail) {
@@ -1159,11 +1089,25 @@ export default function App() {
             )}
 
             {(authMode === "login" || authMode === "register") && (
-              <div className="flex items-center gap-2 mt-1">
-                <input
-                  type="checkbox"
-                  id="rememberMe"
-                  checked={rememberMe}
+              <>
+                <div className="flex flex-col gap-1.5 mt-2">
+                  <label className="text-sm font-medium text-zinc-300">
+                    ยืนยันว่าคุณไม่ใช่บอท: {captchaNum1} + {captchaNum2} = ?
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={captchaAnswer}
+                    onChange={(e) => setCaptchaAnswer(e.target.value)}
+                    className={`w-full px-4 py-3 bg-zinc-900 border ${captchaError ? 'border-red-500' : 'border-zinc-800'} rounded-xl text-white outline-none focus:outline-none focus:border-tactical-red focus:ring-1 focus:ring-tactical-red transition-all`}
+                    placeholder="ใส่ผลลัพธ์ที่นี่"
+                  />
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="checkbox"
+                    id="rememberMe"
+                    checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-tactical-red focus:ring-tactical-red focus:ring-offset-zinc-900"
                 />
@@ -1174,6 +1118,7 @@ export default function App() {
                   จดจำการเข้าสู่ระบบ
                 </label>
               </div>
+              </>
             )}
 
             {authMode === "email_sent" ? (
@@ -1700,14 +1645,10 @@ export default function App() {
             </p>
           </div>
         ) : (
+          <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 lg:gap-8">
-            {(activeCategory === "ทั้งหมด" &&
-            priceCategory === "ทั้งหมด" &&
-            !deferredSearchQuery
-              ? filteredProducts.filter((p) => p.price >= 1000)
-              : filteredProducts
-            )
-              .slice(0, 18)
+            {finalProducts
+              .slice((currentPage - 1) * 15, currentPage * 15)
               .map((product) => (
                 <ProductCard
                   key={product.id}
@@ -1719,9 +1660,52 @@ export default function App() {
                 />
               ))}
           </div>
+          {totalPages > 0 && (
+            <div className="flex flex-col items-center mt-12 mb-4 gap-2">
+              <div className="flex justify-center flex-wrap gap-2">
+                <button
+                  onClick={() => {
+                    setCurrentPage(Math.max(1, currentPage - 1));
+                    window.scrollTo({ top: 300, behavior: 'smooth' });
+                  }}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-50 transition-colors cursor-pointer flex-shrink-0"
+                >
+                  ก่อนหน้า
+                </button>
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                       setCurrentPage(i + 1);
+                       window.scrollTo({ top: 300, behavior: 'smooth' });
+                    }}
+                    className={`w-10 h-10 rounded-lg flex justify-center items-center font-bold transition-all cursor-pointer flex-shrink-0 ${currentPage === i + 1 ? 'bg-tactical-red text-white shadow-[0_0_15px_rgba(230,57,70,0.4)]' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setCurrentPage(Math.min(totalPages, currentPage + 1));
+                    window.scrollTo({ top: 300, behavior: 'smooth' });
+                  }}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-50 transition-colors cursor-pointer flex-shrink-0"
+                >
+                  หน้าถัดไป
+                </button>
+              </div>
+              <p className="text-zinc-500 text-sm mt-4 text-center px-4">
+                กดปุ่ม 3 ขีดซ้ายบนสุดเพื่อเปิดหมวดหมู่สินค้า
+              </p>
+            </div>
+          )}
+          </>
         )}
 
         {/* Savings Plan Section */}
+        {siteSettings.savingsPlanEnabled !== false && (
         <div id="savings-plan" className="mt-24 mb-8 relative">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
           <div className="text-center mb-10 relative z-10">
@@ -1732,13 +1716,10 @@ export default function App() {
               className="text-3xl sm:text-4xl md:text-5xl font-display font-bold text-white mb-4 tracking-tighter space-x-1"
               style={{ textShadow: "0 0 20px rgba(74,222,128,0.3)" }}
             >
-              <span>ระบบ</span>
-              <span className="text-green-400">ออมเงิน</span>
+              <span>{siteSettings.savingsPlanHeadline || "ระบบออมเงิน"}</span>
             </h2>
-            <p className="text-zinc-400 text-sm sm:text-lg md:text-xl max-w-2xl mx-auto px-4 leading-relaxed">
-              อยากได้ปืนเจลแต่งบยังไม่พอ? ออมกับเราได้ง่ายๆ
-              <br className="hidden sm:block" />
-              ผ่าน LINE
+            <p className="text-zinc-400 text-sm sm:text-lg md:text-xl max-w-2xl mx-auto px-4 leading-relaxed whitespace-pre-wrap">
+              {siteSettings.savingsPlanDesc || "อยากได้ปืนเจลแต่งบยังไม่พอ? ออมกับเราได้ง่ายๆ\nผ่าน LINE"}
             </p>
           </div>
 
@@ -1820,6 +1801,7 @@ export default function App() {
             ))}
           </div>
         </div>
+        )}
       </main>
       {/* Footer */}
       <footer className="border-t border-zinc-800 bg-tactical-gray/50 py-12">
@@ -2787,6 +2769,56 @@ export default function App() {
                               className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
                             />
                           </div>
+                          <div>
+                            <label className="block text-zinc-400 text-sm mb-2">
+                              แสดงแบนเนอร์ระบบออมเงิน
+                            </label>
+                            <input
+                              type="checkbox"
+                              checked={editingSettings.savingsPlanEnabled !== false}
+                              onChange={(e) =>
+                                setEditingSettings({
+                                  ...editingSettings,
+                                  savingsPlanEnabled: e.target.checked,
+                                })
+                              }
+                              className="w-5 h-5 bg-zinc-950 border border-zinc-800 rounded focus:ring-tactical-red text-tactical-red"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-zinc-400 text-sm mb-2">
+                              หัวข้อระบบออมเงิน
+                            </label>
+                            <input
+                              type="text"
+                              value={editingSettings.savingsPlanHeadline || ""}
+                              onChange={(e) =>
+                                setEditingSettings({
+                                  ...editingSettings,
+                                  savingsPlanHeadline: e.target.value,
+                                })
+                              }
+                              placeholder="ระบบออมเงิน"
+                              className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-zinc-400 text-sm mb-2">
+                              รายละเอียดระบบออมเงิน
+                            </label>
+                            <textarea
+                              value={editingSettings.savingsPlanDesc || ""}
+                              onChange={(e) =>
+                                setEditingSettings({
+                                  ...editingSettings,
+                                  savingsPlanDesc: e.target.value,
+                                })
+                              }
+                              rows={2}
+                              placeholder="อยากได้ปืนเจลแต่งบยังไม่พอ?..."
+                              className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                            />
+                          </div>
                           <div className="pt-4 flex gap-4">
                             <button
                               onClick={async () => {
@@ -2998,6 +3030,24 @@ export default function App() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 text-sm mb-2">
+                    แท็กสินค้า (คั่นด้วยลูกน้ำ, เช่น PISTOL, COMPACT)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingProduct.tags?.join(", ") || ""}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        tags: e.target.value.split(",").map(item => item.trim()).filter(Boolean),
+                      })
+                    }
+                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                    placeholder="เช่น: PISTOL, COMPACT"
+                  />
                 </div>
 
                 <div>
