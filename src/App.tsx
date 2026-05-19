@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useEffect } from "react";
-import localforage from "localforage";
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
@@ -56,7 +55,7 @@ function handleFirestoreError(
     path,
   };
   console.error("Firestore Error: ", JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  // Not throwing error to prevent app crash and instability from unhandled promises/observers
 }
 
 import {
@@ -70,6 +69,8 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Package,
   FileText,
   Wallet,
@@ -79,7 +80,6 @@ import {
   User,
   LogOut,
   Heart,
-  Star,
   Check,
   Clock,
   Users,
@@ -91,7 +91,7 @@ import {
   ShieldAlert,
   Save,
 } from "lucide-react";
-import { Product, Review } from "./types";
+import { Product } from "./types";
 
 // link directly to the provided LINE OA
 const handleLineAction = () => {
@@ -110,12 +110,14 @@ const ProductCard = React.memo(
     isFavorite,
     onFavorite,
     onContact,
+    isHot = false,
   }: {
     product: Product;
     onSelect: (p: Product) => void;
     isFavorite: boolean;
     onFavorite: (p: Product) => void;
     onContact: (mode: "buy" | "save", p: Product) => void;
+    isHot?: boolean;
   }) => {
     return (
       <motion.div
@@ -126,6 +128,13 @@ const ProductCard = React.memo(
         className="bg-tactical-gray border border-zinc-800 rounded-xl overflow-hidden group hover:border-zinc-600 transition-colors duration-300 flex flex-col cursor-pointer relative"
         onClick={() => onSelect(product)}
       >
+        {isHot && (
+          <div className="absolute top-0 left-0 z-40 overflow-hidden w-[80px] h-[80px] pointer-events-none">
+            <div className="absolute top-4 -left-6 w-[100px] h-[24px] bg-red-600 text-white text-[10px] font-bold tracking-wider flex items-center justify-center -rotate-45 shadow-md">
+              HOT
+            </div>
+          </div>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -141,7 +150,6 @@ const ProductCard = React.memo(
         <div className="relative aspect-square overflow-hidden bg-zinc-900">
           <div className="absolute inset-0 bg-gradient-to-t from-tactical-gray via-transparent to-transparent z-10" />
           <img
-            loading="lazy"
             src={product.image || undefined}
             alt={product.name}
             className={`w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ${product.isOffSale || product.isComingSoon ? "grayscale opacity-70" : ""}`}
@@ -162,7 +170,7 @@ const ProductCard = React.memo(
           )}
           {product.tags && product.tags.length > 0 && (
             <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-20 flex flex-wrap gap-1 sm:gap-2">
-              {product.tags.map((tag) => (
+              {Array.from(new Set(product.tags)).map((tag) => (
                 <span
                   key={tag}
                   className="bg-tactical-red text-white text-[8px] sm:text-[10px] font-bold px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-sm uppercase tracking-widest"
@@ -175,6 +183,11 @@ const ProductCard = React.memo(
         </div>
 
         <div className="p-2 sm:p-4 flex flex-col flex-grow">
+          <div className="mb-0.5 sm:mb-1">
+            <span className="text-zinc-500 text-[9px] sm:text-[10px]">
+              รหัสสินค้า SKU-{product.id.slice(0, 5).toUpperCase()}
+            </span>
+          </div>
           <div className="flex justify-between items-start mb-1 sm:mb-2">
             <h3 className="font-display text-xs sm:text-base font-medium sm:font-bold text-white group-hover:text-tactical-red transition-colors line-clamp-2 leading-tight">
               {product.name}
@@ -246,6 +259,7 @@ const ACCESSORY_SUBCATEGORIES = [
   "ด้ามจับปืน",
   "เลเซอร์",
   "ไฟฉาย",
+  "แม็กกาซีน",
   "อะไหล่ภายในปืน",
   "ปากกระบอกปืนแต่ง",
 ];
@@ -261,8 +275,9 @@ const PRICE_CATEGORIES = [
   { id: ">3000", label: "มากกว่า 3,000 บาท" },
 ];
 
-const CATEGORIES = [
+const getCategories = (bestSellerTitle?: string) => [
   { id: "ทั้งหมด", label: "ทั้งหมด" },
+  { id: "สินค้าขายดี", label: `🔥 ${bestSellerTitle || "สินค้าขายดี"}` },
   { id: "ปืนเจลไฟฟ้า", label: "ปืนเจลไฟฟ้า", sub: GUN_SUBCATEGORIES },
   { id: "อุปกรณ์เสริม", label: "อุปกรณ์เสริม", sub: ACCESSORY_SUBCATEGORIES },
   {
@@ -338,8 +353,36 @@ const compressImage = (file: File): Promise<string> => {
   });
 };
 
+const checkIsAdmin = (email: string | null | undefined) => {
+  if (!email) return false;
+  const e = email.toLowerCase();
+  return (
+    e === "admin@kook.com" ||
+    e === "assistant@kook.com"
+  );
+};
+
+export const getCategoryPrefix = (category: string) => {
+  if (category === "ปืนเจลไฟฟ้า" || GUN_SUBCATEGORIES.includes(category)) return "GB";
+  if (category === "อุปกรณ์เสริม" || ACCESSORY_SUBCATEGORIES.includes(category)) return "AC";
+  if (category === "ชุดที่ชาร์จและแบตเตอรี่" || BATTERY_SUBCATEGORIES.includes(category)) return "BT";
+  if (category === "ลูกกระสุนเจล" || GEL_BALL_SUBCATEGORIES.includes(category)) return "GL";
+  return "PR";
+};
+
+export const generateNextProductId = (category: string, existingProducts: Product[]) => {
+  const prefix = getCategoryPrefix(category);
+  const existingIds = existingProducts
+    .map(p => p.id)
+    .filter(id => id.toUpperCase().startsWith(`${prefix}-`))
+    .map(id => parseInt(id.split('-')[1]) || 0);
+
+  const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+  return `${prefix}-${(maxId + 1).toString().padStart(3, "0")}`;
+};
+
 export default function App() {
-  const [activeCategory, setActiveCategory] = useState("ทั้งหมด");
+  const [activeCategory, setActiveCategory] = useState("ปืนเจลไฟฟ้า");
   const [priceCategory, setPriceCategory] = useState("ทั้งหมด");
   const [expandedCategory, setExpandedCategory] = useState<string | null>(
     "ปืนเจลไฟฟ้า",
@@ -353,6 +396,7 @@ export default function App() {
   const [chickenEffectEnabled, setChickenEffectEnabled] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showLoadingTransition, setShowLoadingTransition] = useState(false);
+
   const [user, setUser] = useState<{ email: string } | null>(null);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
@@ -378,9 +422,6 @@ export default function App() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [authError, setAuthError] = useState("");
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [newReviewComment, setNewReviewComment] = useState("");
-  const [newReviewRating, setNewReviewRating] = useState(5);
 
   const [siteSettings, setSiteSettings] = useState(() => {
     try {
@@ -392,12 +433,7 @@ export default function App() {
   const [orders, setOrders] = useState<any[]>([]); // No mock data
   const [products, setProducts] = useState<Product[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const isAdminUser =
-    user?.email?.toLowerCase() === "admin@kook.com" ||
-    user?.email?.toLowerCase() === "banphaiitel16@gmail.com" ||
-    user?.email?.toLowerCase() === "admin2@kook.com" ||
-    user?.email?.toLowerCase() === "admin99@kook.com" ||
-    user?.email?.toLowerCase() === "assistant@kook.com";
+  const isAdminUser = checkIsAdmin(user?.email);
 
   useEffect(() => {
     let unsubs: any[] = [];
@@ -405,7 +441,16 @@ export default function App() {
     // Auth Listener
     const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
       if (fbUser && fbUser.email) {
-        setUser({ email: fbUser.email });
+        // Only show transition if going from no user to user (logging in)
+        setUser((prev) => {
+          if (!prev) {
+            setShowLoadingTransition(true);
+            setTimeout(() => {
+              setShowLoadingTransition(false);
+            }, 2500);
+          }
+          return { email: fbUser.email! };
+        });
       } else {
         setUser(null);
       }
@@ -437,15 +482,6 @@ export default function App() {
         handleFirestoreError(err, OperationType.GET, "settings/global"),
     );
     unsubs.push(unsubSettings);
-
-    const unsubReviews = onSnapshot(
-      collection(db, "reviews"),
-      (snap) => {
-        setReviews(snap.docs.map((d) => d.data() as Review));
-      },
-      (err) => handleFirestoreError(err, OperationType.LIST, "reviews"),
-    );
-    unsubs.push(unsubReviews);
 
     return () => {
       unsubs.forEach((u) => u());
@@ -480,7 +516,10 @@ export default function App() {
           collection(db, "users"),
           (snap) => {
             setAllUsers(
-              snap.docs.map((d) => d.data() as { email: string; id: string }),
+              snap.docs.map((d) => ({
+                ...(d.data() as any),
+                id: d.id,
+              }) as { email: string; id: string }),
             );
           },
           (err) => {
@@ -512,18 +551,74 @@ export default function App() {
     savingsPlanEnabled?: boolean;
     savingsPlanHeadline?: string;
     savingsPlanDesc?: string;
+    bestSellerTitle?: string;
   } | null>(null);
   const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
-  // We remove localforage `useEffect` saving.
+  // Migrate the user's latest products from localStorage to Firebase
+  useEffect(() => {
+    if (!isAdminUser || !isDataLoaded) return;
+    
+    const restoreLocalData = async () => {
+      try {
+        const restored = localStorage.getItem("restoredLocalData2");
+        if (restored) return;
+
+        console.log("Restoring products from local storage to Firebase...");
+        const savedProducts = localStorage.getItem("products");
+        if (savedProducts) {
+          const localProducts = JSON.parse(savedProducts);
+          if (Array.isArray(localProducts) && localProducts.length > 0) {
+            for (const p of localProducts) {
+              if (p.id) {
+                await setDoc(doc(db, "products", p.id), p);
+                console.log("Restored product:", p.id);
+              }
+            }
+          }
+        }
+        localStorage.setItem("restoredLocalData2", "true");
+      } catch (err) {
+        console.error("Restore failed:", err);
+      }
+    };
+    
+    restoreLocalData();
+  }, [isAdminUser, isDataLoaded]);
+
 
   const handleSaveProduct = async (p: any) => {
     try {
       if (!p.id) p.id = "PROD-" + Date.now();
-      await setDoc(doc(db, "products", p.id), p);
+      
+      const isIdChanged = p.originalId && p.originalId !== p.id;
+      
+      if (isIdChanged) {
+        // delete original document
+        await deleteDoc(doc(db, "products", p.originalId));
+      }
+      
+      const dataToSave = { ...p };
+      delete dataToSave.originalId;
+      delete dataToSave.isNew;
+
+      await setDoc(doc(db, "products", p.id), dataToSave);
       setEditingProduct(null);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `products/${p.id}`);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    setUserToDelete(id);
+  };
+
+  const executeDeleteUser = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "users", id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `users/${id}`);
     }
   };
 
@@ -588,11 +683,15 @@ export default function App() {
   }, [user, rememberMe]);
 
   const handleLoginSuccess = (email: string) => {
-    setShowLoadingTransition(true);
-    setTimeout(() => {
-      setUser({ email: email.toLowerCase() });
-      setShowLoadingTransition(false);
-    }, 2500);
+    setUser((prev) => {
+      if (!prev) {
+        setShowLoadingTransition(true);
+        setTimeout(() => {
+          setShowLoadingTransition(false);
+        }, 2500);
+      }
+      return { email: email.toLowerCase() };
+    });
   };
 
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -703,8 +802,8 @@ export default function App() {
     return deferredSearchQuery
       ? displayedProducts.filter(
           (p) =>
-            p.name.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
-            p.description
+            (p.name || "").toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+            (p.description || "")
               .toLowerCase()
               .includes(deferredSearchQuery.toLowerCase()),
         )
@@ -716,8 +815,10 @@ export default function App() {
       const matchesCategory =
         activeCategory === "ทั้งหมด"
           ? true
+          : activeCategory === "สินค้าขายดี"
+            ? p.tags?.some((t) => t.toLowerCase().includes("ขายดี") || t.toLowerCase().includes("best seller") || t.toLowerCase().includes("bestseller"))
           : activeCategory === "ปืนเจลไฟฟ้า"
-            ? GUN_SUBCATEGORIES.includes(p.category)
+            ? GUN_SUBCATEGORIES.includes(p.category) || p.category === "ปืนเจลไฟฟ้า"
             : activeCategory === "อุปกรณ์เสริม"
               ? ACCESSORY_SUBCATEGORIES.includes(p.category) ||
                 p.category === "อุปกรณ์เสริม"
@@ -741,20 +842,37 @@ export default function App() {
                 : true;
 
       const matchesSearch =
-        p.name.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
-        p.description.toLowerCase().includes(deferredSearchQuery.toLowerCase());
+        (p.name || "").toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+        (p.description || "").toLowerCase().includes(deferredSearchQuery.toLowerCase());
 
       return matchesCategory && matchesPrice && matchesSearch;
     });
   }, [displayedProducts, activeCategory, priceCategory, deferredSearchQuery]);
 
   const finalProducts = React.useMemo(() => {
-    return activeCategory === "ทั้งหมด" &&
-      priceCategory === "ทั้งหมด" &&
-      !deferredSearchQuery
-      ? filteredProducts.filter((p) => p.price >= 1000)
-      : filteredProducts;
+    let result = filteredProducts;
+      
+    // Deduplicate by ID just in case
+    const uniqueProducts = Array.from(new Map(result.map(p => [p.id, p])).values());
+    return uniqueProducts;
   }, [activeCategory, priceCategory, deferredSearchQuery, filteredProducts]);
+
+  const bestSellerProducts = React.useMemo(() => {
+    return Array.from(
+      new Map(
+        displayedProducts
+          .filter((p) =>
+            p.tags?.some(
+              (tag) =>
+                tag.toLowerCase().includes("ขายดี") ||
+                tag.toLowerCase().includes("best seller") ||
+                tag.toLowerCase().includes("bestseller"),
+            ),
+          )
+          .map((p) => [p.id, p]),
+      ).values(),
+    );
+  }, [displayedProducts]);
 
   const totalPages = Math.ceil(finalProducts.length / 15);
 
@@ -912,9 +1030,7 @@ export default function App() {
                 const cleanedInput = loginEmail.trim().toLowerCase();
                 let actualEmail = cleanedInput;
                 if (cleanedInput === "admin") actualEmail = "admin@kook.com";
-                if (cleanedInput === "admin2") actualEmail = "admin2@kook.com";
-                if (cleanedInput === "admin99")
-                  actualEmail = "admin99@kook.com";
+                if (cleanedInput === "assistant") actualEmail = "assistant@kook.com";
 
                 try {
                   if (authMode === "login") {
@@ -934,9 +1050,7 @@ export default function App() {
                         if (
                           [
                             "admin@kook.com",
-                            "banphaiitel16@gmail.com",
-                            "admin2@kook.com",
-                            "admin99@kook.com",
+                            "assistant@kook.com",
                           ].includes(actualEmail)
                         ) {
                           // Auto-register admin if they log in for the first time
@@ -1450,7 +1564,7 @@ export default function App() {
             </div>
             <div className="p-4 flex-1 overflow-y-auto">
               <div className="flex flex-col gap-2">
-                {CATEGORIES.map((category) => (
+                {getCategories(siteSettings.bestSellerTitle).map((category) => (
                   <div key={category.id} className="flex flex-col gap-1">
                     <button
                       onClick={() => {
@@ -1544,27 +1658,67 @@ export default function App() {
           </motion.p>
         </div>
       </div>
+
+      {/* Best Seller Section */}
+      {bestSellerProducts.length > 0 && (
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
+          <div className="flex items-center justify-center mb-8 gap-4">
+            <div className="h-[1px] bg-zinc-600 flex-1 max-w-[100px] md:max-w-[200px]" />
+            <h2 className="font-display text-xl md:text-2xl font-semibold text-white uppercase flex items-center justify-center gap-2 text-center break-words">
+              {siteSettings.bestSellerTitle || "สินค้าขายดี"}
+            </h2>
+            <div className="h-[1px] bg-zinc-600 flex-1 max-w-[100px] md:max-w-[200px]" />
+          </div>
+          <div className="flex gap-4 overflow-x-auto pb-6 snap-x snap-mandatory hidden-scrollbar">
+            {bestSellerProducts.map((product) => (
+              <div key={`bestseller-${product.id}`} className="min-w-[180px] md:min-w-[240px] w-[180px] md:w-[240px] snap-start flex-shrink-0">
+                <ProductCard
+                  product={product}
+                  isFavorite={favorites.includes(product.id)}
+                  onFavorite={handleFavoriteToggle}
+                  onContact={handleContactClick}
+                  onSelect={handleProductSelect}
+                  isHot={true}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-center mt-4">
+            <button
+              onClick={() => {
+                setActiveCategory("สินค้าขายดี");
+                const el = document.getElementById("product-grid");
+                el?.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="border border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500 rounded-full px-6 py-2 transition-colors text-sm"
+            >
+              ดูสินค้ามาแรงทั้งหมด
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* Product Grid */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative">
-        <div className="flex flex-col md:flex-row items-start md:items-end justify-between mb-8 gap-4">
-          <div>
+        <div className="flex flex-col md:flex-row items-start md:items-end justify-between mb-8 gap-4 w-full">
+          <div className="flex-shrink-0">
             <h2 className="font-display text-3xl font-bold text-white mb-2 uppercase flex items-center gap-3">
               <div className="w-2 h-8 bg-tactical-red rounded-sm" />
               Arsenal
             </h2>
             <p className="text-zinc-400">เลือกอาวุธคู่กายของคุณ</p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-4 ml-auto">
-            {/* Desktop Categories */}
-            <div className="hidden lg:flex flex-col gap-3">
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                {CATEGORIES.map((category) => (
+          <div className="flex flex-col xl:flex-row gap-4 w-full md:w-auto xl:ml-auto overflow-hidden">
+            {/* Categories */}
+            <div className="flex flex-col gap-3 overflow-hidden w-full">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 hidden-scrollbar w-full">
+                {getCategories(siteSettings.bestSellerTitle).map((category) => (
                   <button
                     key={category.id}
                     onClick={() => setActiveCategory(category.id)}
                     className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors ${
                       activeCategory === category.id ||
-                      CATEGORIES.find(
+                      getCategories(siteSettings.bestSellerTitle).find(
                         (c) => c.id === category.id,
                       )?.sub?.includes(activeCategory)
                         ? "bg-tactical-red text-white"
@@ -1576,13 +1730,13 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Desktop Subcategories */}
-              {CATEGORIES.find(
+              {/* Subcategories */}
+              {getCategories(siteSettings.bestSellerTitle).find(
                 (c) =>
                   c.id === activeCategory || c.sub?.includes(activeCategory),
               )?.sub && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide justify-end">
-                  {CATEGORIES.find(
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 hidden-scrollbar w-full xl:justify-end">
+                  {getCategories(siteSettings.bestSellerTitle).find(
                     (c) =>
                       c.id === activeCategory ||
                       c.sub?.includes(activeCategory),
@@ -1949,7 +2103,6 @@ export default function App() {
                 <div className="w-full md:w-1/2 relative bg-zinc-950 border-b md:border-b-0 md:border-r border-zinc-800 flex-shrink-0 flex flex-col items-center md:sticky md:top-0 z-10 pb-2 md:pb-0">
                   <div className="relative aspect-square w-full sm:w-3/4 md:w-full md:flex-1 md:min-h-0 overflow-hidden flex items-center justify-center bg-black">
                     <img
-                      loading="lazy"
                       src={
                         (selectedProduct.images &&
                         selectedProduct.images.length > 0
@@ -1974,11 +2127,38 @@ export default function App() {
                         </div>
                       </div>
                     )}
+                    {/* Carousel Controls */}
+                    {selectedProduct.images && selectedProduct.images.length > 1 && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveImageIndex((prev) =>
+                              prev === 0 ? (selectedProduct.images?.length || 1) - 1 : prev - 1
+                            );
+                          }}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 z-30 bg-black/50 hover:bg-tactical-red text-white p-2 rounded-full backdrop-blur-md transition-colors"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveImageIndex((prev) =>
+                              prev === (selectedProduct.images?.length || 1) - 1 ? 0 : prev + 1
+                            );
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 z-30 bg-black/50 hover:bg-tactical-red text-white p-2 rounded-full backdrop-blur-md transition-colors"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent opacity-60 md:hidden pointer-events-none" />
                     {selectedProduct.tags &&
                       selectedProduct.tags.length > 0 && (
                         <div className="absolute top-4 left-4 z-20 flex flex-wrap gap-2">
-                          {selectedProduct.tags.map((tag) => (
+                          {Array.from(new Set(selectedProduct.tags)).map((tag) => (
                             <span
                               key={tag}
                               className="bg-tactical-red text-white text-xs font-bold px-3 py-1 rounded-sm uppercase tracking-widest shadow-lg"
@@ -1995,13 +2175,8 @@ export default function App() {
                     const displayImages =
                       selectedProduct.images &&
                       selectedProduct.images.length > 0
-                        ? selectedProduct.images.slice(0, 4)
-                        : [
-                            selectedProduct.image,
-                            selectedProduct.image,
-                            selectedProduct.image,
-                            selectedProduct.image,
-                          ].slice(0, 4);
+                        ? selectedProduct.images
+                        : [selectedProduct.image];
 
                     return (
                       <div className="h-20 bg-zinc-950 p-2 border-t border-zinc-900 flex gap-2 overflow-x-auto w-full max-w-full z-20">
@@ -2012,7 +2187,6 @@ export default function App() {
                             className={`relative w-16 h-full flex-shrink-0 rounded-md overflow-hidden cursor-pointer border-2 transition-all duration-200 ${activeImageIndex === idx ? "border-tactical-red opacity-100" : "border-zinc-800 opacity-50 hover:opacity-100 hover:border-zinc-600"}`}
                           >
                             <img
-                              loading="lazy"
                               src={img || undefined}
                               alt={`thumbnail ${idx + 1}`}
                               className="w-full h-full object-cover"
@@ -2070,113 +2244,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Mock Reviews Section */}
-                    <div className="mb-0 bg-zinc-900 border border-zinc-800 rounded-xl p-4 sm:p-6 text-sm flex-shrink-0">
-                      <h4 className="text-white font-bold mb-4 flex items-center gap-2">
-                        <Star className="w-5 h-5 text-tactical-red fill-tactical-red" />
-                        รีวิวจากผู้ซื้อ (4.8/5)
-                      </h4>
-                      <div className="space-y-4">
-                        {reviews
-                          .filter((r) => r.product_id === selectedProduct.id)
-                          .map((review, i) => (
-                            <div
-                              key={review.id + i}
-                              className="border-b border-zinc-800 pb-4"
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-6 h-6 bg-zinc-800 border border-zinc-700 rounded-full flex items-center justify-center text-xs font-bold text-white uppercase">
-                                    {review.user.charAt(0)}
-                                  </div>
-                                  <span className="text-zinc-300 font-medium text-sm">
-                                    {review.user}
-                                  </span>
-                                </div>
-                                <div className="flex text-tactical-red space-x-0.5">
-                                  {[1, 2, 3, 4, 5].map((star) => (
-                                    <Star
-                                      key={star}
-                                      className={`w-3 h-3 ${star <= review.rating ? "fill-tactical-red" : "text-zinc-700"}`}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                              <p className="text-zinc-400 text-sm leading-relaxed">
-                                {review.comment}
-                              </p>
-                            </div>
-                          ))}
-                      </div>
 
-                      {user ? (
-                        <div className="mt-6 pt-4 border-t border-tactical-red/20">
-                          <h4 className="text-white font-bold mb-3 text-sm">
-                            เขียนรีวิวของคุณ
-                          </h4>
-                          <div className="flex items-center gap-2 mb-3">
-                            <span className="text-zinc-400 text-sm">
-                              ให้คะแนน:
-                            </span>
-                            <div className="flex text-tactical-red cursor-pointer">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <Star
-                                  key={star}
-                                  onClick={() => setNewReviewRating(star)}
-                                  className={`w-5 h-5 transition-transform hover:scale-110 ${star <= newReviewRating ? "fill-tactical-red" : "text-zinc-700"}`}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                          <textarea
-                            value={newReviewComment}
-                            onChange={(e) =>
-                              setNewReviewComment(e.target.value)
-                            }
-                            placeholder="พิมพ์รีวิวของคุณที่นี่..."
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-tactical-red mb-3 min-h-[80px]"
-                          />
-                          <button
-                            onClick={async () => {
-                              if (!newReviewComment.trim()) return;
-
-                              const newReview = {
-                                id: Date.now().toString(),
-                                product_id: selectedProduct.id,
-                                user: user.email.split("@")[0],
-                                rating: newReviewRating,
-                                comment: newReviewComment,
-                                date: "เมื่อสักครู่",
-                              };
-
-                              try {
-                                await setDoc(
-                                  doc(db, "reviews", newReview.id),
-                                  newReview,
-                                );
-                                setNewReviewComment("");
-                                setNewReviewRating(5);
-                              } catch (e) {
-                                handleFirestoreError(
-                                  e,
-                                  OperationType.WRITE,
-                                  `reviews/${newReview.id}`,
-                                );
-                              }
-                            }}
-                            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm font-bold transition-colors cursor-pointer"
-                          >
-                            ส่งรีวิว
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="mt-6 pt-4 border-t border-zinc-800">
-                          <p className="text-zinc-500 text-sm text-center">
-                            กรุณาเข้าสู่ระบบเพื่อเขียนรีวิว
-                          </p>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
               </div>
@@ -2445,11 +2513,8 @@ export default function App() {
                       <button
                         onClick={() =>
                           setEditingProduct({
-                            id:
-                              "PROD-" +
-                              Math.floor(Math.random() * 100000)
-                                .toString()
-                                .padStart(5, "0"),
+                            id: "",
+                            isNew: true,
                             name: "",
                             price: 0,
                             description: "",
@@ -2515,7 +2580,7 @@ export default function App() {
                               </td>
                               <td className="px-6 py-4 text-right">
                                 <button
-                                  onClick={() => setEditingProduct(p)}
+                                  onClick={() => setEditingProduct({ ...p, originalId: p.id })}
                                   className="p-2 text-zinc-400 hover:text-white transition-colors cursor-pointer"
                                   title="แก้ไข"
                                 >
@@ -2819,6 +2884,23 @@ export default function App() {
                               className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
                             />
                           </div>
+                          <div>
+                            <label className="block text-zinc-400 text-sm mb-2">
+                              หัวข้อสินค้าขายดี
+                            </label>
+                            <input
+                              type="text"
+                              value={editingSettings.bestSellerTitle || ""}
+                              onChange={(e) =>
+                                setEditingSettings({
+                                  ...editingSettings,
+                                  bestSellerTitle: e.target.value,
+                                })
+                              }
+                              placeholder="สินค้าขายดี / Best Sellers"
+                              className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                            />
+                          </div>
                           <div className="pt-4 flex gap-4">
                             <button
                               onClick={async () => {
@@ -2847,13 +2929,14 @@ export default function App() {
                           <tr>
                             <th className="px-6 py-4">ผู้ใช้</th>
                             <th className="px-6 py-4">สถานะ</th>
+                            <th className="px-6 py-4">ประเภทผู้ใช้</th>
                             <th className="px-6 py-4 text-right">จัดการ</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-800/50">
                           {allUsers.map(({ email, id }) => (
                             <tr
-                              key={email}
+                              key={id || email}
                               className="hover:bg-zinc-800/50 transition-colors"
                             >
                               <td className="px-6 py-4 text-white font-medium flex items-center gap-3">
@@ -2868,9 +2951,16 @@ export default function App() {
                                   ใช้งานได้
                                 </span>
                               </td>
+                              <td className="px-6 py-4 text-white font-medium">
+                                {checkIsAdmin(email) ? (
+                                  <span className="text-tactical-red">Admin (ผู้ดูแลระบบ)</span>
+                                ) : (
+                                  <span className="text-zinc-400">User (ผู้ใช้งาน)</span>
+                                )}
+                              </td>
                               <td className="px-6 py-4 text-right">
                                 <button
-                                  onClick={() => alert("ไม่สามารถลบผู้ใช้ได้")}
+                                  onClick={() => handleDeleteUser(id)}
                                   className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer"
                                   title="ลบบัญชี"
                                 >
@@ -2986,12 +3076,18 @@ export default function App() {
                   </label>
                   <select
                     value={editingProduct.category}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const newCategory = e.target.value;
+                      let newId = editingProduct.id;
+                      if (editingProduct.isNew && newCategory) {
+                        newId = generateNextProductId(newCategory, products);
+                      }
                       setEditingProduct({
                         ...editingProduct,
-                        category: e.target.value,
-                      })
-                    }
+                        category: newCategory,
+                        id: newId,
+                      });
+                    }}
                     className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red appearance-none"
                   >
                     <option value="" disabled>
@@ -3032,22 +3128,70 @@ export default function App() {
                   </select>
                 </div>
 
-                <div>
+                <div className="mb-4">
                   <label className="block text-zinc-400 text-sm mb-2">
-                    แท็กสินค้า (คั่นด้วยลูกน้ำ, เช่น PISTOL, COMPACT)
+                    แท็กสินค้า (พิมพ์แท็กแล้วกด Enter หรือกด +, เช่น PISTOL, COMPACT, ขายดี)
                   </label>
-                  <input
-                    type="text"
-                    value={editingProduct.tags?.join(", ") || ""}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        tags: e.target.value.split(",").map(item => item.trim()).filter(Boolean),
-                      })
-                    }
-                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
-                    placeholder="เช่น: PISTOL, COMPACT"
-                  />
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {(editingProduct.tags || []).map((tag: string, idx: number) => (
+                      <span key={idx} className="bg-zinc-800 border border-zinc-700 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newTags = [...(editingProduct.tags || [])];
+                            newTags.splice(idx, 1);
+                            setEditingProduct({ ...editingProduct, tags: newTags });
+                          }}
+                          className="text-zinc-500 hover:text-tactical-red transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      id="tag-input"
+                      type="text"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          const value = e.currentTarget.value.trim();
+                          if (value) {
+                            const newTags = Array.from(new Set([
+                              ...(editingProduct.tags || []),
+                              ...value.split(",").map((v: string) => v.trim()).filter(Boolean)
+                            ]));
+                            setEditingProduct({ ...editingProduct, tags: newTags });
+                            e.currentTarget.value = '';
+                          }
+                        }
+                      }}
+                      className="flex-1 bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                      placeholder="พิมพ์แท็กแล้วกด Enter หรือกด + ..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const inputEl = document.getElementById("tag-input") as HTMLInputElement;
+                        if (inputEl) {
+                          const value = inputEl.value.trim();
+                          if (value) {
+                            const newTags = Array.from(new Set([
+                              ...(editingProduct.tags || []),
+                              ...value.split(",").map((v: string) => v.trim()).filter(Boolean)
+                            ]));
+                            setEditingProduct({ ...editingProduct, tags: newTags });
+                            inputEl.value = '';
+                          }
+                        }
+                      }}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors border border-zinc-700 flex items-center justify-center shrink-0"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -3225,6 +3369,62 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* User Delete Modal */}
+      <AnimatePresence>
+        {userToDelete && (
+          <div className="fixed inset-0 z-[220] flex justify-center items-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              onClick={() => setUserToDelete(null)}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
+                <h3 className="font-display font-bold text-xl text-white">
+                  ยืนยันการลบผู้ใช้
+                </h3>
+                <button
+                  onClick={() => setUserToDelete(null)}
+                  className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-full text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6">
+                <p className="text-zinc-400 text-sm mb-6">
+                  คุณกำลังจะลบผู้ใช้รายนี้ การกระทำนี้ไม่สามารถย้อนกลับได้
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setUserToDelete(null)}
+                    className="px-4 py-2 text-zinc-400 hover:text-white transition-colors"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    onClick={() => {
+                      executeDeleteUser(userToDelete);
+                      setUserToDelete(null);
+                    }}
+                    className="px-4 py-2 bg-tactical-red hover:bg-red-600 text-white rounded-lg transition-colors font-bold"
+                  >
+                    ยืนยันการลบ
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Order Editing Modal */}
       <AnimatePresence>
         {editingOrder && (
@@ -3290,24 +3490,89 @@ export default function App() {
 
                 <div>
                   <label className="block text-zinc-400 text-sm mb-2">
-                    รายการสินค้า (คั่นด้วยลูกน้ำ ",")
+                    รายการสินค้า
                   </label>
-                  <input
-                    type="text"
-                    value={
-                      editingOrder.items ? editingOrder.items.join(", ") : ""
-                    }
-                    onChange={(e) =>
-                      setEditingOrder({
-                        ...editingOrder,
-                        items: e.target.value
-                          .split(",")
-                          .map((x) => x.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
-                  />
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {(editingOrder.items || []).map((item: string, idx: number) => (
+                      <span key={idx} className="bg-zinc-800 border border-zinc-700 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                        {item}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newItems = [...(editingOrder.items || [])];
+                            newItems.splice(idx, 1);
+                            setEditingOrder({ ...editingOrder, items: newItems });
+                          }}
+                          className="text-zinc-500 hover:text-tactical-red transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <select
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value) {
+                           const newItems = [...(editingOrder.items || []), value];
+                           setEditingOrder({ ...editingOrder, items: newItems });
+                           e.target.value = "";
+                        }
+                      }}
+                      className="bg-zinc-950 border border-zinc-800 text-zinc-400 rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red appearance-none"
+                    >
+                      <option value="">+ เลือกสินค้าจากในระบบ...</option>
+                      {products.map(p => (
+                        <option key={p.id} value={`${p.name} (${p.id})`}>
+                          [{p.id}] {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    
+                    <div className="flex gap-2">
+                      <input
+                        id="order-item-input"
+                        type="text"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ',') {
+                            e.preventDefault();
+                            const value = e.currentTarget.value.trim();
+                            if (value) {
+                              const newItems = [
+                                ...(editingOrder.items || []),
+                                ...value.split(",").map((v: string) => v.trim()).filter(Boolean)
+                              ];
+                              setEditingOrder({ ...editingOrder, items: newItems });
+                              e.currentTarget.value = '';
+                            }
+                          }
+                        }}
+                        className="flex-1 bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                        placeholder="หรือพิมพ์ชื่อสินค้าเองแล้วกด Enter / ลูกน้ำ..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const inputEl = document.getElementById("order-item-input") as HTMLInputElement;
+                          if (inputEl) {
+                            const value = inputEl.value.trim();
+                            if (value) {
+                              const newItems = [
+                                ...(editingOrder.items || []),
+                                ...value.split(",").map((v: string) => v.trim()).filter(Boolean)
+                              ];
+                              setEditingOrder({ ...editingOrder, items: newItems });
+                              inputEl.value = '';
+                            }
+                          }
+                        }}
+                        className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors border border-zinc-700 flex items-center justify-center shrink-0"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
