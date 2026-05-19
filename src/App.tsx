@@ -382,10 +382,10 @@ export const generateNextProductId = (category: string, existingProducts: Produc
 };
 
 export default function App() {
-  const [activeCategory, setActiveCategory] = useState("ปืนเจลไฟฟ้า");
+  const [activeCategory, setActiveCategory] = useState("ทั้งหมด");
   const [priceCategory, setPriceCategory] = useState("ทั้งหมด");
   const [expandedCategory, setExpandedCategory] = useState<string | null>(
-    "ปืนเจลไฟฟ้า",
+    "ทั้งหมด",
   );
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -874,7 +874,7 @@ export default function App() {
     );
   }, [displayedProducts]);
 
-  const totalPages = Math.ceil(finalProducts.length / 15);
+  const totalPages = Math.ceil(finalProducts.length / 16);
 
   if (showLoadingTransition) {
     return (
@@ -900,18 +900,20 @@ export default function App() {
             className="w-40 h-40 md:w-56 md:h-56 rounded-[2rem] overflow-hidden flex items-center justify-center bg-black border border-zinc-800 shadow-[0_0_50px_rgba(255,255,255,0.05)]"
           >
             <img
+              key={`img-${siteSettings.logo}`}
               src={siteSettings.logo || undefined}
               alt="Logo"
               className="w-full h-full object-cover"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
-                (
-                  e.target as HTMLImageElement
-                ).nextElementSibling?.classList.remove("hidden");
+                const helperText = (e.target as HTMLImageElement).nextElementSibling;
+                if (helperText) {
+                  helperText.classList.remove("hidden");
+                }
               }}
             />
             {/* Fallback text if logo image is missing */}
-            <div className="hidden text-white font-bold text-3xl text-center">
+            <div key={`text-${siteSettings.logo}`} className="hidden text-white font-bold text-3xl text-center">
               {siteSettings.title}
             </div>
           </motion.div>
@@ -1802,7 +1804,7 @@ export default function App() {
           <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 lg:gap-8">
             {finalProducts
-              .slice((currentPage - 1) * 15, currentPage * 15)
+              .slice((currentPage - 1) * 16, currentPage * 16)
               .map((product) => (
                 <ProductCard
                   key={product.id}
