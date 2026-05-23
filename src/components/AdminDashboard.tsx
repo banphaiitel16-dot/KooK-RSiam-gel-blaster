@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShieldAlert, X, LayoutDashboard, Package, Users, ShoppingCart, Settings, 
-  BarChart3, Plus, Edit, Trash2, Save 
+  BarChart3, Plus, Edit, Trash2, Save, Copy 
 } from 'lucide-react';
 import { Product } from '../types';
 
@@ -201,8 +201,19 @@ export default function AdminDashboard({
                               key={p.id}
                               className="hover:bg-zinc-800/50 transition-colors"
                             >
-                              <td className="px-6 py-4 font-mono text-xs">
-                                {p.id}
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs">{p.id}</span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(p.id);
+                                    }}
+                                    className="text-zinc-500 hover:text-white transition-colors"
+                                    title="คัดลอกรหัสสินค้า"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                </div>
                               </td>
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">

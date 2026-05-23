@@ -90,6 +90,7 @@ import {
   Trash2,
   ShieldAlert,
   Save,
+  Copy,
 } from "lucide-react";
 import { Product } from "./types";
 const AdminDashboard = React.lazy(() => import('./components/AdminDashboard'));
@@ -111,6 +112,7 @@ const ProductCard = React.memo(
     isFavorite,
     onFavorite,
     onContact,
+    onCopyId,
     isHot = false,
   }: {
     product: Product;
@@ -118,6 +120,7 @@ const ProductCard = React.memo(
     isFavorite: boolean;
     onFavorite: (p: Product) => void;
     onContact: (mode: "buy" | "save", p: Product) => void;
+    onCopyId: (id: string, e: React.MouseEvent) => void;
     isHot?: boolean;
   }) => {
     return (
@@ -184,10 +187,17 @@ const ProductCard = React.memo(
         </div>
 
         <div className="p-2 sm:p-4 flex flex-col flex-grow">
-          <div className="mb-0.5 sm:mb-1">
+          <div className="mb-0.5 sm:mb-1 flex items-center gap-2">
             <span className="text-zinc-500 text-[9px] sm:text-[10px]">
               รหัสสินค้า SKU-{product.id.slice(0, 5).toUpperCase()}
             </span>
+            <button
+              onClick={(e) => onCopyId(product.id, e)}
+              className="text-zinc-500 hover:text-white transition-colors"
+              title="คัดลอกรหัสสินค้า"
+            >
+              <Copy className="w-3 h-3" />
+            </button>
           </div>
           <div className="flex justify-between items-start mb-1 sm:mb-2">
             <h3 className="font-display text-xs sm:text-base font-medium sm:font-bold text-white group-hover:text-tactical-red transition-colors line-clamp-2 leading-tight">
@@ -730,6 +740,18 @@ export default function App() {
       });
     },
     [showToast],
+  );
+
+  const handleCopyId = React.useCallback(
+    (id: string, e?: React.MouseEvent) => {
+      if (e) {
+        e.stopPropagation();
+      }
+      navigator.clipboard.writeText(id).then(() => {
+        showToast("คัดลอกรหัสสินค้าเรียบร้อย");
+      });
+    },
+    [showToast]
   );
 
   const handleFavoriteToggle = React.useCallback(
@@ -1695,6 +1717,7 @@ export default function App() {
                   onFavorite={handleFavoriteToggle}
                   onContact={handleContactClick}
                   onSelect={handleProductSelect}
+                  onCopyId={handleCopyId}
                   isHot={true}
                 />
               </div>
@@ -1828,6 +1851,7 @@ export default function App() {
                   onFavorite={handleFavoriteToggle}
                   onContact={handleContactClick}
                   onSelect={handleProductSelect}
+                  onCopyId={handleCopyId}
                 />
               ))}
           </div>
@@ -2222,8 +2246,17 @@ export default function App() {
                       <div className="uppercase tracking-widest text-[10px] sm:text-xs font-bold text-tactical-red">
                         {selectedProduct.category}
                       </div>
-                      <div className="text-[10px] sm:text-xs font-mono text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">
-                        ID: {selectedProduct.id}
+                      <div className="flex items-center gap-2">
+                        <div className="text-[10px] sm:text-xs font-mono text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">
+                          ID: {selectedProduct.id}
+                        </div>
+                        <button
+                          onClick={(e) => handleCopyId(selectedProduct.id, e)}
+                          className="text-zinc-500 hover:text-white transition-colors"
+                          title="คัดลอกรหัสสินค้า"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                     <h2 className="text-xl md:text-2xl font-display font-bold text-white mb-2 leading-tight">
