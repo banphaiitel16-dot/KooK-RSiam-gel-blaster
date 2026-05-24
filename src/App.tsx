@@ -261,9 +261,9 @@ const ProductCard = React.memo(
   },
 );
 
-const GUN_SUBCATEGORIES = ["ปืนพก", "ปืนไรเฟิลจู่โจม", "ลูกซอง", "ปืนกลมือ"];
+export const GUN_SUBCATEGORIES = ["ปืนพก", "ปืนไรเฟิลจู่โจม", "ลูกซอง", "ปืนกลมือ"];
 
-const ACCESSORY_SUBCATEGORIES = [
+export const ACCESSORY_SUBCATEGORIES = [
   "กริปมือจับ",
   "ขาทราย",
   "ศูนย์เล็ง",
@@ -275,9 +275,9 @@ const ACCESSORY_SUBCATEGORIES = [
   "ปากกระบอกปืนแต่ง",
 ];
 
-const BATTERY_SUBCATEGORIES = ["แบต 7.4v", "แบต 11.1v", "สายชาร์จ"];
+export const BATTERY_SUBCATEGORIES = ["แบต 7.4v", "แบต 11.1v", "สายชาร์จ"];
 
-const GEL_BALL_SUBCATEGORIES = ["แบบมาตรฐาน", "แบบแข็ง"];
+export const GEL_BALL_SUBCATEGORIES = ["แบบมาตรฐาน", "แบบแข็ง"];
 
 const PRICE_CATEGORIES = [
   { id: "ทั้งหมด", label: "ทุกระดับราคา" },
@@ -364,7 +364,7 @@ const compressImage = (file: File): Promise<string> => {
   });
 };
 
-const checkIsAdmin = (email: string | null | undefined) => {
+export const checkIsAdmin = (email: string | null | undefined) => {
   if (!email) return false;
   const e = email.toLowerCase();
   return (

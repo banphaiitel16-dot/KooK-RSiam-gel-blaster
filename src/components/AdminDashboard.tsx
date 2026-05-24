@@ -6,6 +6,14 @@ import {
   BarChart3, Plus, Edit, Trash2, Save, Copy 
 } from 'lucide-react';
 import { Product } from '../types';
+import { 
+  GUN_SUBCATEGORIES, 
+  ACCESSORY_SUBCATEGORIES, 
+  BATTERY_SUBCATEGORIES, 
+  GEL_BALL_SUBCATEGORIES, 
+  generateNextProductId, 
+  checkIsAdmin 
+} from '../constants';
 
 export default function AdminDashboard({
   siteSettings,
@@ -377,12 +385,7 @@ export default function AdminDashboard({
                                     </select>
                                     <button
                                       onClick={() => {
-                                        setOrders(
-                                          orders.map((x) =>
-                                            x.id === o.id ? editingOrder : x,
-                                          ),
-                                        );
-                                        setEditingOrder(null);
+                                        handleSaveOrder(editingOrder);
                                       }}
                                       className="bg-tactical-red text-white px-4 py-1.5 rounded"
                                     >
@@ -622,7 +625,7 @@ export default function AdminDashboard({
                               </td>
                               <td className="px-6 py-4 text-right">
                                 <button
-                                  onClick={() => handleDeleteUser(id)}
+                                  onClick={() => setUserToDelete(id)}
                                   className="p-2 text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer"
                                   title="ลบบัญชี"
                                 >
