@@ -154,6 +154,8 @@ const ProductCard = React.memo(
         <div className="relative aspect-square overflow-hidden bg-zinc-900">
           <div className="absolute inset-0 bg-gradient-to-t from-tactical-gray via-transparent to-transparent z-10" />
           <img
+            loading="lazy"
+            decoding="async"
             src={product.image || undefined}
             alt={product.name}
             className={`w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ${product.isOffSale || product.isComingSoon ? "grayscale opacity-70" : ""}`}
@@ -1462,6 +1464,8 @@ export default function App() {
                               }}
                             >
                               <img
+                                loading="lazy"
+                                decoding="async"
                                 src={product.image || undefined}
                                 alt={product.name}
                                 className="w-12 h-12 object-cover rounded-md flex-shrink-0"
@@ -2228,6 +2232,8 @@ export default function App() {
                             className={`relative w-16 h-full flex-shrink-0 rounded-md overflow-hidden cursor-pointer border-2 transition-all duration-200 ${activeImageIndex === idx ? "border-tactical-red opacity-100" : "border-zinc-800 opacity-50 hover:opacity-100 hover:border-zinc-600"}`}
                           >
                             <img
+                              loading="lazy"
+                              decoding="async"
                               src={img || undefined}
                               alt={`thumbnail ${idx + 1}`}
                               className="w-full h-full object-cover"
