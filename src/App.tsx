@@ -13,7 +13,9 @@ import {
   createUserWithEmailAndPassword,
 } from "firebase/auth";
 import {
-  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   onSnapshot,
   collection,
   doc,
@@ -26,7 +28,12 @@ import firebaseConfig from "../firebase-applet-config.json";
 import { motion, AnimatePresence } from "motion/react";
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Initialize Firestore with offline persistence
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
+}, firebaseConfig.firestoreDatabaseId);
+
 export const auth = getAuth(app);
 
 enum OperationType {
