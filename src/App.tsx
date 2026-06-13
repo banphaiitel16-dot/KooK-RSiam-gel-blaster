@@ -61,8 +61,16 @@ function handleFirestoreError(
     operationType,
     path,
   };
-  console.error("Firestore Error: ", JSON.stringify(errInfo));
-  // Not throwing error to prevent app crash and instability from unhandled promises/observers
+  if (errInfo.error.includes("Quota limit exceeded") || errInfo.error.includes("quota")) {
+    console.warn("Firestore Quota Exceeded:", errInfo.error);
+    window.dispatchEvent(
+      new CustomEvent("firestoreQuotaError", {
+        detail: "ใช้งานเกินโควต้าฟรีรายวัน กรุณาลองใหม่ในภายหลังหรือติดต่อผู้ดูแลระบบ",
+      })
+    );
+  } else {
+    console.error("Firestore Error: \n" + JSON.stringify(errInfo));
+  }
 }
 
 import {
@@ -98,6 +106,8 @@ import {
   ShieldAlert,
   Save,
   Copy,
+  MessageSquare,
+  X as CloseIcon,
 } from "lucide-react";
 import { Product } from "./types";
 const AdminDashboard = React.lazy(() => import('./components/AdminDashboard'));
@@ -223,11 +233,7 @@ const ProductCard = React.memo(
             ฿{product.price.toLocaleString()}
           </div>
 
-          <p className="text-zinc-500 text-[10px] sm:text-xs leading-relaxed mb-2 sm:mb-4 flex-grow line-clamp-1 sm:line-clamp-2">
-            {product.description}
-          </p>
-
-          <div className="flex flex-col xl:flex-row gap-1.5 sm:gap-2 mt-1 sm:mt-auto relative z-20">
+          <div className="flex flex-col md:flex-row gap-1.5 sm:gap-2 mt-1 sm:mt-auto relative z-20">
             {product.isComingSoon ? (
               <button
                 disabled
@@ -237,17 +243,17 @@ const ProductCard = React.memo(
                 เร็วๆนี้...
               </button>
             ) : (
-              <>
+              <div className="flex flex-row gap-1.5 w-full">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!product.isOffSale) onContact("buy", product);
                   }}
                   disabled={product.isOffSale}
-                  className={`flex-1 py-1.5 sm:py-2 px-1 sm:px-2 rounded-md font-bold text-[10px] sm:text-xs transition-colors flex items-center justify-center gap-1 ${product.isOffSale ? "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/50" : "bg-tactical-red hover:bg-tactical-red-hover text-white shadow-[0_0_10px_rgba(225,29,72,0.2)] cursor-pointer"}`}
+                  className={`flex-[2] py-1.5 sm:py-2 px-1 sm:px-2 rounded-md font-bold text-[10px] sm:text-xs transition-colors flex items-center justify-center gap-1 ${product.isOffSale ? "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/50" : "bg-tactical-red hover:bg-tactical-red-hover text-white shadow-[0_0_10px_rgba(225,29,72,0.2)] cursor-pointer"}`}
                 >
                   <ShoppingCart className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                  {product.isOffSale ? "สินค้าหมด" : "สั่งซื้อ"}
+                  {product.isOffSale ? "หมด" : "สั่งซื้อ"}
                 </button>
                 {!product.isOffSale && (
                   <button
@@ -257,11 +263,12 @@ const ProductCard = React.memo(
                     }}
                     className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 py-1.5 sm:py-2 px-1 sm:px-2 rounded-md font-bold text-[10px] sm:text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    <PiggyBank className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                    ออมเงิน
+                    <PiggyBank className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:hidden" />
+                    <span className="hidden md:inline">ออมเงิน</span>
+                    <span className="md:hidden">ออม</span>
                   </button>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -317,8 +324,8 @@ const renderTitle = (title: string, navbar: boolean = false) => {
     if (navbar) {
       return (
         <>
-          {firstPart}-
-          <span className="text-tactical-red group-hover:text-white transition-colors">
+          <span className="transition-colors group-active:text-tactical-red-hover">{firstPart}</span>-
+          <span className="text-tactical-red group-hover:text-white transition-colors group-active:text-gray-300">
             {rest}
           </span>
         </>
@@ -343,7 +350,7 @@ const compressImage = (file: File): Promise<string> => {
         const canvas = document.createElement("canvas");
         let width = img.width;
         let height = img.height;
-        const max = 800; // max size to prevent localStorage quota issues
+        const max = 600; // reduced max size to improve upload performance and network consumption
 
         if (width > height) {
           if (width > max) {
@@ -361,7 +368,7 @@ const compressImage = (file: File): Promise<string> => {
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL("image/jpeg", 0.8)); // 0.8 quality jpeg
+          resolve(canvas.toDataURL("image/webp", 0.6)); // use webp and lower quality
         } else {
           // Fallback if canvas context fails
           resolve(event.target?.result as string);
@@ -378,7 +385,10 @@ export const checkIsAdmin = (email: string | null | undefined) => {
   const e = email.toLowerCase();
   return (
     e === "admin@kook.com" ||
-    e === "assistant@kook.com"
+    e === "assistant@kook.com" ||
+    e === "assistant2@kook.com" ||
+    e === "staff@kook.com" ||
+    e === "kook07250@gmail.com"
   );
 };
 
@@ -409,6 +419,7 @@ export default function App() {
   );
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productContactMode, setProductContactMode] = useState<"buy" | "save" | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -424,6 +435,15 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(typeof window !== "undefined" && window.innerWidth >= 1024 ? 18 : 16);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setItemsPerPage(window.innerWidth >= 1024 ? 18 : 16);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -450,6 +470,32 @@ export default function App() {
     } catch (e) {}
     return { logo: "/logo.jpg", title: "KooK-RSiam" };
   });
+
+  const [appError, setAppError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleQuotaError = (e: any) => {
+      setAppError(e.detail);
+    };
+    window.addEventListener("firestoreQuotaError", handleQuotaError);
+    return () => window.removeEventListener("firestoreQuotaError", handleQuotaError);
+  }, []);
+
+  useEffect(() => {
+    if (siteSettings.title) {
+      document.title = siteSettings.title;
+    }
+    if (siteSettings.logo) {
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = siteSettings.logo;
+    }
+  }, [siteSettings.title, siteSettings.logo]);
+
   const [orders, setOrders] = useState<any[]>([]); // No mock data
   const [products, setProducts] = useState<Product[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -714,9 +760,34 @@ export default function App() {
     });
   };
 
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("kook_favorites");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            return parsed.filter(id => id != null && id !== "");
+          }
+        } catch (e) {
+          console.error("Could not parse saved favorites");
+        }
+      }
+    }
+    return [];
+  });
+  
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("kook_favorites", JSON.stringify(favorites));
+    }
+  }, [favorites]);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [isFabOpen, setIsFabOpen] = useState(false);
+  const [activeSavingsSteps, setActiveSavingsSteps] = useState<number[]>([]);
   const [contactMode, setContactMode] = useState<"buy" | "save" | "general">(
     "general",
   );
@@ -724,10 +795,17 @@ export default function App() {
 
   const handleContactClick = React.useCallback(
     (mode: "buy" | "save" | "general", product?: Product) => {
-      setContactMode(mode);
-      if (product) setContactProduct(product);
-      else setContactProduct(selectedProduct);
-      setIsContactModalOpen(true);
+      if (mode === "general") {
+        setContactMode(mode);
+        setIsContactModalOpen(true);
+      } else {
+        const prod = product || selectedProduct;
+        if (prod) {
+          setSelectedProduct(prod);
+          setActiveImageIndex(0);
+          setProductContactMode(mode);
+        }
+      }
     },
     [selectedProduct],
   );
@@ -739,6 +817,7 @@ export default function App() {
 
   const toggleFavorite = React.useCallback(
     (productId: string) => {
+      if (!productId) return;
       setFavorites((prev) => {
         if (prev.includes(productId)) {
           return prev.filter((id) => id !== productId);
@@ -772,6 +851,7 @@ export default function App() {
 
   const handleProductSelect = React.useCallback((product: Product) => {
     setSelectedProduct(product);
+    setProductContactMode(null);
     setActiveImageIndex(0);
   }, []);
 
@@ -906,7 +986,23 @@ export default function App() {
     );
   }, [displayedProducts]);
 
-  const totalPages = Math.ceil(finalProducts.length / 16);
+  const newArrivalProducts = React.useMemo(() => {
+    const OneMonthMs = 30 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    return Array.from(
+      new Map(
+        displayedProducts
+          .filter((p) => {
+            if (!p.isNewArrival) return false;
+            if (p.newArrivalDate && now - p.newArrivalDate > OneMonthMs) return false;
+            return true;
+          })
+          .map((p) => [p.id, p]),
+      ).values(),
+    );
+  }, [displayedProducts]);
+
+  const totalPages = Math.ceil(finalProducts.length / itemsPerPage);
 
   if (showLoadingTransition) {
     return (
@@ -968,6 +1064,22 @@ export default function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-tactical-black font-sans selection:bg-tactical-red selection:text-white flex items-center justify-center p-4 relative overflow-hidden">
+        <AnimatePresence>
+          {appError && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              className="absolute top-0 left-0 right-0 bg-red-600/90 text-white text-center py-2 px-4 shadow-xl z-[100] text-sm sm:text-base font-bold flex items-center justify-center gap-2"
+            >
+              <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+              <span>{appError}</span>
+              <button onClick={() => setAppError(null)} className="ml-4 hover:bg-white/20 rounded-full p-1 transition-colors">
+                <X className="w-4 h-4 cursor-pointer" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Background Layer */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-800/20 via-tactical-black to-tactical-black pointer-events-none" />
 
@@ -1065,6 +1177,8 @@ export default function App() {
                 let actualEmail = cleanedInput;
                 if (cleanedInput === "admin") actualEmail = "admin@kook.com";
                 if (cleanedInput === "assistant") actualEmail = "assistant@kook.com";
+                if (cleanedInput === "assistant2") actualEmail = "assistant2@kook.com";
+                if (cleanedInput === "staff") actualEmail = "staff@kook.com";
 
                 try {
                   if (authMode === "login") {
@@ -1085,6 +1199,9 @@ export default function App() {
                           [
                             "admin@kook.com",
                             "assistant@kook.com",
+                            "assistant2@kook.com",
+                            "staff@kook.com",
+                            "kook07250@gmail.com"
                           ].includes(actualEmail)
                         ) {
                           // Auto-register admin if they log in for the first time
@@ -1369,12 +1486,33 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen bg-tactical-black font-sans selection:bg-tactical-red selection:text-white"
+      className="min-h-screen bg-tactical-black font-sans selection:bg-tactical-red selection:text-white overflow-x-hidden"
       onClick={handleGlobalClick}
     >
+      <AnimatePresence>
+        {appError && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-red-600/90 text-white text-center py-2 px-4 shadow-xl z-[100] relative text-sm sm:text-base font-bold flex items-center justify-center gap-2"
+          >
+            <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+            <span>{appError}</span>
+            <button onClick={() => setAppError(null)} className="ml-4 hover:bg-white/20 rounded-full p-1 transition-colors">
+              <X className="w-4 h-4 cursor-pointer" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-tactical-black/80 backdrop-blur-md border-b border-zinc-800/50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <motion.nav 
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ type: "spring", stiffness: 100, damping: 20 }}
+        className="fixed top-0 left-0 right-0 z-50 bg-tactical-black/80 backdrop-blur-md border-b border-zinc-800/50"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             <div className="flex items-center gap-4">
               <button
@@ -1388,9 +1526,9 @@ export default function App() {
                   setActiveCategory("ทั้งหมด");
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
-                className="flex items-center gap-3 cursor-pointer group"
+                className="flex items-center gap-3 cursor-pointer group active:scale-95 transition-transform duration-200"
               >
-                <span className="font-display font-bold text-2xl tracking-tighter text-white group-hover:text-tactical-red transition-colors">
+                <span className="font-display font-bold text-2xl tracking-tighter text-white group-hover:text-tactical-red active:text-tactical-red-hover transition-colors">
                   {renderTitle(siteSettings.title, true)}
                 </span>
               </button>
@@ -1409,14 +1547,14 @@ export default function App() {
                   สั่งผ่าน LINE
                 </span>
               </div>
-              <div className="relative flex items-center">
+              <div className="relative flex items-center justify-end z-[60]">
                 <AnimatePresence>
                   {isSearchExpanded ? (
                     <motion.div
                       initial={{ width: 0, opacity: 0 }}
                       animate={{ width: "auto", opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
-                      className="relative"
+                      className="absolute right-0 sm:relative sm:right-auto z-50 flex items-center"
                     >
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                       <input
@@ -1430,7 +1568,7 @@ export default function App() {
                           if (!searchQuery) setIsSearchExpanded(false);
                         }}
                         autoFocus
-                        className="pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-full text-white text-sm focus:outline-none focus:border-tactical-red focus:ring-1 focus:ring-tactical-red transition-all w-[180px] sm:w-[240px] placeholder:text-zinc-600"
+                        className="pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-full text-white text-[16px] focus:outline-none focus:border-tactical-red focus:ring-1 focus:ring-tactical-red transition-all w-[240px] shadow-xl sm:shadow-none placeholder:text-zinc-600"
                       />
                     </motion.div>
                   ) : (
@@ -1456,7 +1594,7 @@ export default function App() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       transition={{ duration: 0.2 }}
-                      className="absolute top-full mt-3 right-0 w-[280px] sm:w-[350px] bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-[100] flex flex-col max-h-[400px]"
+                      className="absolute top-full mt-3 right-0 sm:right-0 -mr-20 sm:mr-0 w-[calc(100vw-40px)] sm:w-[350px] max-w-[350px] bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-[100] flex flex-col max-h-[400px]"
                     >
                       {searchDropdownProducts.length > 0 ? (
                         <div className="overflow-y-auto p-2">
@@ -1465,8 +1603,7 @@ export default function App() {
                               key={product.id}
                               className="flex items-center gap-3 p-2 hover:bg-zinc-800/50 rounded-lg cursor-pointer transition-colors"
                               onMouseDown={() => {
-                                setSelectedProduct(product);
-                                setActiveImageIndex(0);
+                                handleProductSelect(product);
                                 setSearchQuery("");
                               }}
                             >
@@ -1511,7 +1648,10 @@ export default function App() {
                 <Settings className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
 
-              <button className="text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer relative">
+              <button 
+                onClick={() => setIsFavoritesModalOpen(true)}
+                className="text-zinc-400 hover:text-tactical-red transition-colors cursor-pointer relative"
+              >
                 <Heart className="w-5 h-5 sm:w-6 sm:h-6" />
                 {favorites.length > 0 && (
                   <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-tactical-red text-[10px] font-bold text-white">
@@ -1585,7 +1725,7 @@ export default function App() {
             </div>
           </div>
         </div>
-      </nav>
+      </motion.nav>
       {/* Sidebar Menu */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-[60] flex">
@@ -1686,7 +1826,7 @@ export default function App() {
         <div className="absolute inset-0 tactical-grid opacity-30" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-tactical-red/20 blur-[120px] rounded-full pointer-events-none" />
 
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1711,7 +1851,13 @@ export default function App() {
 
       {/* Best Seller Section */}
       {bestSellerProducts.length > 0 && (
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
+        <motion.section 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-50px" }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative"
+        >
           <div className="flex items-center justify-center mb-8 gap-4">
             <div className="h-[1px] bg-zinc-600 flex-1 max-w-[100px] md:max-w-[200px]" />
             <h2 className="font-display text-xl md:text-2xl font-semibold text-white uppercase flex items-center justify-center gap-2 text-center break-words">
@@ -1719,7 +1865,7 @@ export default function App() {
             </h2>
             <div className="h-[1px] bg-zinc-600 flex-1 max-w-[100px] md:max-w-[200px]" />
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-6 snap-x snap-mandatory hidden-scrollbar">
+          <div className="flex gap-4 md:gap-6 overflow-x-auto pb-6 snap-x snap-mandatory hidden-scrollbar">
             {bestSellerProducts.map((product) => (
               <div key={`bestseller-${product.id}`} className="min-w-[180px] md:min-w-[240px] w-[180px] md:w-[240px] snap-start flex-shrink-0">
                 <ProductCard
@@ -1746,11 +1892,51 @@ export default function App() {
               ดูสินค้ามาแรงทั้งหมด
             </button>
           </div>
-        </section>
+        </motion.section>
+      )}
+
+      {/* New Arrivals Section */}
+      {newArrivalProducts.length > 0 && (
+        <motion.section 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-50px" }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative"
+        >
+          <div className="flex items-center justify-center mb-8 gap-4">
+            <div className="h-[1px] bg-[#4ade80]/40 flex-1 max-w-[100px] md:max-w-[200px]" />
+            <h2 className="font-display text-xl md:text-2xl font-semibold text-[#4ade80] uppercase flex items-center justify-center gap-2 text-center break-words">
+              สินค้ามาใหม่
+            </h2>
+            <div className="h-[1px] bg-[#4ade80]/40 flex-1 max-w-[100px] md:max-w-[200px]" />
+          </div>
+          <div className="flex gap-4 md:gap-6 overflow-x-auto pb-6 snap-x snap-mandatory hidden-scrollbar">
+            {newArrivalProducts.slice(0, 8).map((product) => (
+              <div key={`newarrival-${product.id}`} className="min-w-[180px] md:min-w-[240px] w-[180px] md:w-[240px] snap-start flex-shrink-0">
+                <ProductCard
+                  product={product}
+                  isFavorite={favorites.includes(product.id)}
+                  onFavorite={handleFavoriteToggle}
+                  onContact={handleContactClick}
+                  onSelect={handleProductSelect}
+                  onCopyId={handleCopyId}
+                />
+              </div>
+            ))}
+          </div>
+        </motion.section>
       )}
 
       {/* Product Grid */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative">
+      <motion.main 
+        initial={{ opacity: 0, y: 30 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-50px" }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative"
+        id="product-grid"
+      >
         <div className="flex flex-col md:flex-row items-start md:items-end justify-between mb-8 gap-4 w-full">
           <div className="flex-shrink-0">
             <h2 className="font-display text-3xl font-bold text-white mb-2 uppercase flex items-center gap-3">
@@ -1851,9 +2037,9 @@ export default function App() {
           </div>
         ) : (
           <>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 lg:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4 md:gap-6 lg:gap-8">
             {finalProducts
-              .slice((currentPage - 1) * 16, currentPage * 16)
+              .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
               .map((product) => (
                 <ProductCard
                   key={product.id}
@@ -1925,7 +2111,7 @@ export default function App() {
               <span>{siteSettings.savingsPlanHeadline || "ระบบออมเงิน"}</span>
             </h2>
             <p className="text-zinc-400 text-sm sm:text-lg md:text-xl max-w-2xl mx-auto px-4 leading-relaxed whitespace-pre-wrap">
-              {siteSettings.savingsPlanDesc || "อยากได้ปืนเจลแต่งบยังไม่พอ? ออมกับเราได้ง่ายๆ\\nผ่าน LINE"}
+              {(siteSettings.savingsPlanDesc || "อยากได้ปืนเจลแต่งบยังไม่พอ? ออมกับเราได้ง่ายๆ\nผ่าน LINE").replace(/\\n/g, "\n")}
             </p>
           </div>
 
@@ -1934,7 +2120,7 @@ export default function App() {
               {
                 icon: (
                   <Package
-                    className="w-10 h-10 sm:w-12 sm:h-12 text-green-400 mb-3"
+                    className="w-10 h-10 sm:w-12 sm:h-12 text-green-400 mb-3 group-hover:text-white transition-colors"
                     strokeWidth={1.5}
                   />
                 ),
@@ -1944,7 +2130,7 @@ export default function App() {
               {
                 icon: (
                   <MessageCircle
-                    className="w-10 h-10 sm:w-12 sm:h-12 text-green-400 mb-3"
+                    className="w-10 h-10 sm:w-12 sm:h-12 text-green-400 mb-3 group-hover:text-white transition-colors"
                     strokeWidth={1.5}
                   />
                 ),
@@ -1954,7 +2140,7 @@ export default function App() {
               {
                 icon: (
                   <FileText
-                    className="w-10 h-10 sm:w-12 sm:h-12 text-green-400 mb-3"
+                    className="w-10 h-10 sm:w-12 sm:h-12 text-green-400 mb-3 group-hover:text-white transition-colors"
                     strokeWidth={1.5}
                   />
                 ),
@@ -1964,7 +2150,7 @@ export default function App() {
               {
                 icon: (
                   <Wallet
-                    className="w-10 h-10 sm:w-12 sm:h-12 text-green-400 mb-3"
+                    className="w-10 h-10 sm:w-12 sm:h-12 text-green-400 mb-3 group-hover:text-white transition-colors"
                     strokeWidth={1.5}
                   />
                 ),
@@ -1974,44 +2160,65 @@ export default function App() {
               {
                 icon: (
                   <PiggyBank
-                    className="w-10 h-10 sm:w-12 sm:h-12 text-green-400 mb-3"
+                    className="w-10 h-10 sm:w-12 sm:h-12 text-green-400 mb-3 group-hover:text-white transition-colors"
                     strokeWidth={1.5}
                   />
                 ),
                 title: "ครบยอด → จัดส่ง",
                 description: "ครบยอดเมื่อไหร่ จัดส่งทันที",
               },
-            ].map((step, index) => (
+            ].map((step, index) => {
+              const isActive = activeSavingsSteps.includes(index);
+              return (
               <motion.div
                 key={index}
-                initial={{ opacity: 0, y: 15 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setActiveSavingsSteps(prev => 
+                    prev.includes(index) ? [] : [index]
+                  );
+                }}
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                animate={{ scale: isActive ? 1.05 : 1 }}
+                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: isActive ? 1.05 : 1.02 }}
                 viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-                className={`bg-[#121212] border ${index === 0 ? "border-tactical-red/50" : "border-zinc-800"} rounded-xl p-6 sm:p-8 relative overflow-hidden text-center flex flex-col items-center cursor-pointer hover:border-tactical-red/80 hover:bg-[#161616] transition-colors duration-300 group shadow-lg`}
+                transition={{ duration: 0.4, delay: index * 0.1, type: "spring", stiffness: 300, damping: 20 }}
+                className={`bg-[#121212] border rounded-xl p-6 sm:p-8 relative overflow-hidden text-center flex flex-col items-center cursor-pointer select-none transition-all duration-300 group
+                  ${isActive 
+                    ? "border-green-400 bg-[#1a1a1a] shadow-[0_0_35px_rgba(74,222,128,0.7)] z-20" 
+                    : "border-zinc-800 hover:border-green-500/50 hover:bg-[#161616] hover:shadow-[0_0_20px_rgba(74,222,128,0.2)]"
+                  }
+                `}
               >
-                <div className="absolute top-0 left-0 w-12 h-12 sm:w-14 sm:h-14 bg-tactical-red flex items-start justify-start pl-2.5 pt-1.5 sm:pl-3 sm:pt-2 font-black text-white text-sm sm:text-base [clip-path:polygon(0_0,100%_0,0_100%)] z-10">
+                <div className={`absolute top-0 left-0 w-12 h-12 sm:w-14 sm:h-14 transition-colors flex items-start justify-start pl-2.5 pt-1.5 sm:pl-3 sm:pt-2 font-black text-white text-sm sm:text-base [clip-path:polygon(0_0,100%_0,0_100%)] z-10 ${isActive ? "bg-green-500" : "bg-tactical-red group-hover:bg-green-500"}`}>
                   {index + 1}
                 </div>
-                <div className="relative z-10 group-hover:scale-110 transition-transform duration-300">
+                <div className={`relative z-10 transition-all duration-300 ${isActive ? "scale-110 -translate-y-1" : "group-hover:scale-110 group-hover:-translate-y-1"}`}>
                   {step.icon}
                 </div>
-                <h3 className="text-white font-bold text-lg sm:text-xl mb-1 sm:mb-2 relative z-10 group-hover:text-green-400 transition-colors">
+                <h3 className={`font-bold text-lg sm:text-xl mb-1 sm:mb-2 relative z-10 transition-colors ${isActive ? "text-green-400" : "text-white group-hover:text-green-400"}`}>
                   {step.title}
                 </h3>
-                <p className="text-zinc-500 text-xs sm:text-sm md:text-base relative z-10 group-hover:text-zinc-400 transition-colors">
+                <p className={`text-xs sm:text-sm md:text-base relative z-10 transition-colors ${isActive ? "text-zinc-300" : "text-zinc-500 group-hover:text-zinc-300"}`}>
                   {step.description}
                 </p>
+                <div className={`absolute inset-0 bg-gradient-to-t from-green-500/5 to-transparent transition-opacity duration-300 pointer-events-none ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} />
               </motion.div>
-            ))}
+            )})}
           </div>
         </div>
         )}
-      </main>
+      </motion.main>
       {/* Footer */}
-      <footer className="border-t border-zinc-800 bg-tactical-gray/50 py-12">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+      <motion.footer 
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        className="border-t border-zinc-800 bg-tactical-gray/50 py-12"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3 opacity-50 hover:opacity-100 transition-opacity">
             <span className="font-display font-bold text-xl tracking-tighter text-white">
               {renderTitle(siteSettings.title)}
@@ -2024,50 +2231,71 @@ export default function App() {
             Gel Blaster Tactical Store
           </p>
         </div>
-      </footer>
-      {/* Floating Contact Buttons */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-4">
-        {/* Facebook Button */}
-        <motion.button
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
+      </motion.footer>
+      {/* Floating Contact Speed Dial */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end" onMouseLeave={() => setIsFabOpen(false)}>
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 20 }}
+              transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 25 }}
+              className="flex flex-col gap-4 items-end mb-4"
+            >
+              {/* Facebook Button */}
+              <div className="flex items-center gap-3">
+                <span className="bg-zinc-800 text-white text-xs sm:text-sm font-bold px-3 py-1.5 rounded-lg border border-zinc-700 shadow-xl whitespace-nowrap">
+                  KooK-RSiam
+                </span>
+                <button
+                  onClick={handleFacebookAction}
+                  className="bg-[#1877F2] hover:bg-[#166fe5] text-white rounded-full w-12 h-12 shadow-[0_5px_20px_rgba(24,119,242,0.4)] hover:shadow-[0_8px_25px_rgba(24,119,242,0.6)] hover:-translate-y-0.5 transition-all flex items-center justify-center cursor-pointer"
+                >
+                  <Facebook className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* LINE Button */}
+              <div className="flex items-center gap-3">
+                <span className="bg-zinc-800 text-white text-xs sm:text-sm font-bold px-3 py-1.5 rounded-lg border border-zinc-700 shadow-xl whitespace-nowrap">
+                  พูดคุยผ่าน LINE
+                </span>
+                <button
+                  onClick={() => {
+                    setIsFabOpen(false);
+                    handleLineAction();
+                  }}
+                  className="bg-[#06C755] hover:bg-[#05b34c] text-white rounded-full w-12 h-12 shadow-[0_5px_20px_rgba(6,199,85,0.4)] hover:shadow-[0_8px_25px_rgba(6,199,85,0.6)] hover:-translate-y-0.5 transition-all flex items-center justify-center cursor-pointer"
+                >
+                  <MessageCircle className="w-6 h-6" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0, y: 80 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{
-            delay: 0.4,
+            delay: 0.8,
             type: "spring",
             stiffness: 200,
-            damping: 20,
+            damping: 15,
           }}
-          onClick={handleFacebookAction}
-          className="bg-[#1877F2] hover:bg-[#166fe5] text-white rounded-full w-14 h-14 shadow-[0_5px_20px_rgba(24,119,242,0.4)] hover:shadow-[0_8px_25px_rgba(24,119,242,0.6)] hover:-translate-y-1 transition-all duration-300 flex items-center justify-center cursor-pointer group relative"
+          className="relative"
         >
-          <Facebook className="w-7 h-7" />
-
-          {/* Tooltip */}
-          <div className="absolute right-[calc(100%+16px)] bg-zinc-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-zinc-700 shadow-xl">
-            ติดต่อผ่าน Facebook
-          </div>
-        </motion.button>
-
-        {/* LINE Button */}
-        <motion.button
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{
-            delay: 0.5,
-            type: "spring",
-            stiffness: 200,
-            damping: 20,
-          }}
-          onClick={() => handleContactClick("general")}
-          className="bg-[#06C755] hover:bg-[#05b34c] text-white rounded-full w-14 h-14 shadow-[0_5px_20px_rgba(6,199,85,0.4)] hover:shadow-[0_8px_25px_rgba(6,199,85,0.6)] hover:-translate-y-1 transition-all duration-300 flex items-center justify-center cursor-pointer group relative"
-        >
-          <MessageCircle className="w-7 h-7" />
-
-          {/* Tooltip */}
-          <div className="absolute right-[calc(100%+16px)] bg-zinc-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-zinc-700 shadow-xl">
-            ติดต่อผ่าน LINE
-          </div>
-        </motion.button>
+          <motion.button
+            animate={{ rotate: isFabOpen ? 90 : 0 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            onClick={() => setIsFabOpen(!isFabOpen)}
+            onMouseEnter={() => setIsFabOpen(true)}
+            className={`bg-tactical-red hover:bg-red-600 text-white rounded-full w-14 h-14 shadow-[0_5px_20px_rgba(225,29,72,0.4)] hover:shadow-[0_8px_25px_rgba(225,29,72,0.6)] transition-all duration-300 flex items-center justify-center cursor-pointer`}
+          >
+            {isFabOpen ? <CloseIcon className="w-7 h-7" /> : <MessageSquare className="w-7 h-7" />}
+          </motion.button>
+        </motion.div>
       </div>
       {/* Settings Modal */}
       <AnimatePresence>
@@ -2124,57 +2352,74 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-      {/* Product Detail Modal */}
+      {/* Product Detail "Page" Modal */}
       <AnimatePresence>
         {selectedProduct && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-6">
+          <div className="fixed inset-0 z-[200] bg-tactical-black overflow-hidden flex flex-col">
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/90 backdrop-blur-sm cursor-pointer"
-              onClick={() => setSelectedProduct(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
               transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-              className="relative w-full max-w-4xl bg-tactical-gray border md:border-zinc-800 sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[100dvh] md:h-auto max-h-[100dvh] md:max-h-[90vh]"
+              className="absolute inset-0 bg-tactical-black flex flex-col pt-14 md:pt-16 pb-20 md:pb-24"
             >
-              <button
-                onClick={() => setSelectedProduct(null)}
-                className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-tactical-red text-white p-2 rounded-full backdrop-blur-md transition-colors"
-                aria-label="Close modal"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="flex-1 overflow-y-auto flex flex-col md:flex-row w-full bg-tactical-gray items-start relative scroll-smooth overscroll-y-contain">
-                {/* Image Section */}
-                <div className="w-full md:w-1/2 relative bg-zinc-950 border-b md:border-b-0 md:border-r border-zinc-800 flex-shrink-0 flex flex-col items-center md:sticky md:top-0 z-10 pb-2 md:pb-0">
-                  <div className="relative aspect-square w-full sm:w-3/4 md:w-full md:flex-1 md:min-h-0 overflow-hidden flex items-center justify-center bg-black">
-                    <img
-                      src={
-                        (selectedProduct.images &&
-                        selectedProduct.images.length > 0
-                          ? selectedProduct.images[activeImageIndex]
-                          : selectedProduct.image) || undefined
-                      }
-                      alt={selectedProduct.name}
-                      className={`w-full h-full object-contain ${selectedProduct.isOffSale || selectedProduct.isComingSoon ? "grayscale opacity-70" : ""}`}
+              {/* Header inside the "page" */}
+              <div className="absolute top-0 left-0 right-0 z-50 bg-tactical-black/95 backdrop-blur-md border-b border-zinc-800 p-3 sm:p-4 flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setProductContactMode(null);
+                  }}
+                  className="bg-zinc-800/50 hover:bg-tactical-red text-white p-2 rounded-full transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <CloseIcon className="w-5 h-5" />
+                  <span className="text-sm font-bold pr-2 hidden sm:inline">กลับ</span>
+                </button>
+                <h1 className="text-white font-bold text-base sm:text-lg md:text-xl truncate px-4 flex-1 text-center">
+                  รายละเอียดสินค้า
+                </h1>
+                <div className="w-[88px] sm:w-[90px] flex justify-end">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFavoriteToggle(selectedProduct);
+                    }}
+                    className="p-2 rounded-full bg-zinc-800/50 hover:bg-zinc-700 transition-colors flex items-center justify-center cursor-pointer group"
+                    title={favorites.includes(selectedProduct.id) ? "นำออกจากรายการโปรด" : "เพิ่มในรายการโปรด"}
+                  >
+                    <Heart
+                      className={`w-5 h-5 transition-colors ${favorites.includes(selectedProduct.id) ? "fill-tactical-red text-tactical-red" : "text-zinc-400 group-hover:text-white"}`}
                     />
-                    {selectedProduct.isOffSale &&
-                      !selectedProduct.isComingSoon && (
-                        <div className="absolute inset-0 bg-black/40 z-10 flex items-center justify-center backdrop-blur-[1px]">
-                          <div className="bg-red-600/90 text-white font-black px-6 py-2 sm:px-8 sm:py-3 rounded-lg sm:rounded-xl text-lg sm:text-2xl tracking-[0.2em] shadow-2xl transform -rotate-12 border border-red-500/50 uppercase">
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto w-full scroll-smooth overscroll-y-contain">
+                <div className="max-w-3xl mx-auto w-full h-full flex flex-col bg-tactical-gray relative">
+                  {/* Image Section */}
+                  <div className="w-full relative bg-black flex-shrink-0 flex flex-col items-center">
+                    <div className="relative aspect-square w-full overflow-hidden flex items-center justify-center bg-black">
+                      <img
+                        src={
+                          (selectedProduct.images &&
+                          selectedProduct.images.length > 0
+                            ? selectedProduct.images[activeImageIndex]
+                            : selectedProduct.image) || undefined
+                        }
+                        alt={selectedProduct.name}
+                        className={`w-full h-full object-contain ${selectedProduct.isOffSale || selectedProduct.isComingSoon ? "grayscale opacity-70" : ""}`}
+                      />
+                      {selectedProduct.isOffSale &&
+                        !selectedProduct.isComingSoon && (
+                          <div className="absolute inset-0 bg-black/40 z-10 flex items-center justify-center backdrop-blur-[1px]">
+                            <div className="bg-red-600/90 text-white font-black px-6 py-2 rounded-lg text-lg sm:text-2xl tracking-[0.2em] shadow-2xl transform -rotate-12 border border-red-500/50 uppercase">
                             สินค้าหมดชั่วคราว
                           </div>
                         </div>
                       )}
                     {selectedProduct.isComingSoon && (
                       <div className="absolute inset-0 bg-black/40 z-10 flex items-center justify-center backdrop-blur-[1px]">
-                        <div className="bg-blue-600/90 text-white font-black px-6 py-2 sm:px-8 sm:py-3 rounded-lg sm:rounded-xl text-lg sm:text-2xl tracking-[0.2em] shadow-2xl transform -rotate-12 border border-blue-500/50 uppercase">
+                        <div className="bg-blue-600/90 text-white font-black px-6 py-2 rounded-lg text-lg sm:text-2xl tracking-[0.2em] shadow-2xl transform -rotate-12 border border-blue-500/50 uppercase">
                           เร็วๆนี้...
                         </div>
                       </div>
@@ -2189,7 +2434,7 @@ export default function App() {
                               prev === 0 ? (selectedProduct.images?.length || 1) - 1 : prev - 1
                             );
                           }}
-                          className="absolute left-2 top-1/2 -translate-y-1/2 z-30 bg-black/50 hover:bg-tactical-red text-white p-2 rounded-full backdrop-blur-md transition-colors"
+                          className="absolute left-2 top-1/2 -translate-y-1/2 z-30 bg-black/50 hover:bg-tactical-red text-white p-2 rounded-full backdrop-blur-md transition-colors cursor-pointer"
                         >
                           <ChevronLeft className="w-5 h-5" />
                         </button>
@@ -2200,13 +2445,12 @@ export default function App() {
                               prev === (selectedProduct.images?.length || 1) - 1 ? 0 : prev + 1
                             );
                           }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 z-30 bg-black/50 hover:bg-tactical-red text-white p-2 rounded-full backdrop-blur-md transition-colors"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 z-30 bg-black/50 hover:bg-tactical-red text-white p-2 rounded-full backdrop-blur-md transition-colors cursor-pointer"
                         >
                           <ChevronRight className="w-5 h-5" />
                         </button>
                       </>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent opacity-60 md:hidden pointer-events-none" />
                     {selectedProduct.tags &&
                       selectedProduct.tags.length > 0 && (
                         <div className="absolute top-4 left-4 z-20 flex flex-wrap gap-2">
@@ -2230,13 +2474,15 @@ export default function App() {
                         ? selectedProduct.images
                         : [selectedProduct.image];
 
+                    if (displayImages.length <= 1) return null;
+
                     return (
-                      <div className="h-20 bg-zinc-950 p-2 border-t border-zinc-900 flex gap-2 overflow-x-auto w-full max-w-full z-20">
+                      <div className="bg-zinc-950 p-2 border-b border-zinc-900 flex gap-2 overflow-x-auto w-full max-w-full z-20 hidden-scrollbar">
                         {displayImages.map((img, idx) => (
                           <div
                             key={idx}
                             onClick={() => setActiveImageIndex(idx)}
-                            className={`relative w-16 h-full flex-shrink-0 rounded-md overflow-hidden cursor-pointer border-2 transition-all duration-200 ${activeImageIndex === idx ? "border-tactical-red opacity-100" : "border-zinc-800 opacity-50 hover:opacity-100 hover:border-zinc-600"}`}
+                            className={`relative w-16 h-16 flex-shrink-0 rounded-md overflow-hidden cursor-pointer border-2 transition-all duration-200 ${activeImageIndex === idx ? "border-tactical-red opacity-100" : "border-zinc-800 opacity-50 hover:opacity-100 hover:border-zinc-600"}`}
                           >
                             <img
                               loading="lazy"
@@ -2253,8 +2499,8 @@ export default function App() {
                 </div>
 
                 {/* Details Section */}
-                <div className="w-full md:w-1/2 flex flex-col z-0">
-                  <div className="p-4 md:p-6 pb-[100px] flex flex-col">
+                <div className="w-full flex flex-col z-0 bg-tactical-gray min-h-[50vh]">
+                  <div className="p-4 md:p-6 flex flex-col">
                     <div className="flex items-center justify-between mb-2">
                       <div className="uppercase tracking-widest text-[10px] sm:text-xs font-bold text-tactical-red">
                         {selectedProduct.category}
@@ -2265,7 +2511,7 @@ export default function App() {
                         </div>
                         <button
                           onClick={(e) => handleCopyId(selectedProduct.id, e)}
-                          className="text-zinc-500 hover:text-white transition-colors"
+                          className="text-zinc-500 hover:text-white transition-colors cursor-pointer"
                           title="คัดลอกรหัสสินค้า"
                         >
                           <Copy className="w-4 h-4" />
@@ -2278,12 +2524,6 @@ export default function App() {
 
                     <div className="text-2xl md:text-3xl font-display font-bold text-tactical-red mb-4">
                       ฿{selectedProduct.price.toLocaleString()}
-                    </div>
-
-                    <div className="prose prose-invert max-w-none shadow-sm mb-6 flex-shrink-0">
-                      <p className="text-zinc-300 text-xs md:text-sm leading-relaxed whitespace-pre-wrap">
-                        {selectedProduct.description}
-                      </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 mb-6 flex-shrink-0">
@@ -2307,47 +2547,91 @@ export default function App() {
                       </div>
                     </div>
 
+                    <div className="prose prose-invert max-w-none shadow-sm mb-6 flex-shrink-0 bg-zinc-900/30 p-4 rounded-xl border border-zinc-800/30">
+                      <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-tactical-red" />
+                        รายละเอียดสินค้า
+                      </h3>
+                      <p className="text-zinc-300 text-xs md:text-sm leading-relaxed whitespace-pre-wrap">
+                        {selectedProduct.description}
+                      </p>
+                    </div>
 
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div className="absolute bottom-0 left-0 right-0 md:left-auto md:w-1/2 z-50 flex flex-row gap-2.5 p-3 md:p-6 bg-tactical-gray md:bg-tactical-gray/95 md:backdrop-blur-md border-t border-zinc-800 shrink-0 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.5)]">
-                {selectedProduct.isComingSoon ? (
-                  <button
-                    disabled
-                    className="flex-1 py-3 px-6 rounded-md font-bold bg-blue-900/40 text-blue-400 border border-blue-800/50 cursor-not-allowed flex items-center justify-center gap-1.5 text-sm"
-                  >
-                    <ShoppingCart className="w-4 h-4 opacity-70" />
-                    เร็วๆนี้...
-                  </button>
-                ) : (
-                  <>
+              <div className="absolute bottom-0 left-0 right-0 z-50 flex flex-col justify-center bg-tactical-gray md:bg-tactical-gray/95 md:backdrop-blur-md border-t border-zinc-800 shrink-0 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.5)]">
+                {productContactMode && (
+                  <div className="w-full max-w-3xl mx-auto px-3 md:px-4 pt-3 pb-0 flex items-center gap-2">
+                    <span className="text-sm font-bold text-white flex-1">
+                      {productContactMode === "buy" ? "สั่งซื้อสินค้าผ่าน:" : "แจ้งออมเงินผ่าน:"}
+                    </span>
                     <button
-                      onClick={() => {
-                        if (!selectedProduct.isOffSale)
-                          handleContactClick("buy");
-                      }}
-                      disabled={selectedProduct.isOffSale}
-                      className={`flex-1 py-3 px-6 rounded-md font-bold transition-all duration-300 flex items-center justify-center gap-1.5 text-sm ${selectedProduct.isOffSale ? "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/50" : "bg-tactical-red hover:bg-tactical-red-hover text-white shadow-[0_0_15px_rgba(225,29,72,0.3)] hover:shadow-[0_0_20px_rgba(225,29,72,0.4)] cursor-pointer active:scale-95"}`}
+                      onClick={() => setProductContactMode(null)}
+                      className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer px-2 py-1 rounded bg-zinc-800/50"
                     >
-                      <ShoppingCart className="w-4 h-4" />
-                      {selectedProduct.isOffSale
-                        ? "สินค้าหมด"
-                        : "สั่งซื้อสินค้า"}
+                      ยกเลิก
                     </button>
-                    {!selectedProduct.isOffSale && (
-                      <button
-                        onClick={() => handleContactClick("save")}
-                        className="w-1/3 md:flex-1 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 hover:border-zinc-500 flex items-center justify-center gap-1.5 cursor-pointer py-3 px-6 rounded-md font-bold transition-all duration-300 active:scale-95 text-sm"
-                      >
-                        <PiggyBank className="w-4 h-4" />
-                        <span className="hidden sm:inline">ออมเงิน</span>
-                        <span className="sm:hidden">ออม</span>
-                      </button>
-                    )}
-                  </>
+                  </div>
                 )}
+                <div className="w-full max-w-3xl mx-auto flex flex-row gap-2.5 p-3 md:p-4">
+                  {selectedProduct.isComingSoon ? (
+                    <button
+                      disabled
+                      className="flex-1 py-3.5 px-6 rounded-lg font-bold bg-blue-900/40 text-blue-400 border border-blue-800/50 cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                    >
+                      <ShoppingCart className="w-5 h-5 opacity-70" />
+                      เร็วๆนี้...
+                    </button>
+                  ) : productContactMode ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          handleLineAction();
+                        }}
+                        className="flex-1 py-3.5 px-4 rounded-lg font-bold bg-[#06C755] hover:bg-[#05b34c] text-white transition-colors flex items-center justify-center gap-2 text-sm shadow-lg cursor-pointer"
+                      >
+                        <MessageCircle className="w-5 h-5" />
+                        LINE
+                      </button>
+                      <button
+                        onClick={handleFacebookAction}
+                        className="flex-1 py-3.5 px-4 rounded-lg font-bold bg-[#1877F2] hover:bg-[#1864D9] text-white transition-colors flex items-center justify-center gap-2 text-sm shadow-lg cursor-pointer"
+                      >
+                        <Facebook className="w-5 h-5" />
+                        Messenger
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (!selectedProduct.isOffSale)
+                            setProductContactMode("buy");
+                        }}
+                        disabled={selectedProduct.isOffSale}
+                        className={`flex-1 py-3.5 px-6 rounded-lg font-bold transition-all duration-300 flex items-center justify-center gap-2 text-sm ${selectedProduct.isOffSale ? "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/50" : "bg-tactical-red hover:bg-tactical-red-hover text-white shadow-[0_0_15px_rgba(225,29,72,0.3)] hover:shadow-[0_0_20px_rgba(225,29,72,0.4)] cursor-pointer active:scale-95"}`}
+                      >
+                        <ShoppingCart className="w-5 h-5" />
+                        {selectedProduct.isOffSale
+                          ? "สินค้าหมด"
+                          : "สั่งซื้อสินค้า"}
+                      </button>
+                      {!selectedProduct.isOffSale && (
+                        <button
+                          onClick={() => setProductContactMode("save")}
+                          className="w-1/3 md:w-40 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 hover:border-zinc-500 flex items-center justify-center gap-2 cursor-pointer py-3.5 px-4 rounded-lg font-bold transition-all duration-300 active:scale-95 text-sm"
+                        >
+                          <PiggyBank className="w-5 h-5" />
+                          <span className="hidden sm:inline">ออมเงิน</span>
+                          <span className="sm:hidden">ออม</span>
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </motion.div>
           </div>
@@ -2473,6 +2757,79 @@ export default function App() {
           </React.Suspense>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {isFavoritesModalOpen && (
+          <div className="fixed inset-0 z-[120] flex justify-center flex-col items-center sm:p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsFavoritesModalOpen(false)}
+              className="absolute inset-0 bg-tactical-black/90 backdrop-blur-sm cursor-pointer"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-zinc-900 w-full sm:w-[90vw] md:w-[85vw] max-w-6xl sm:rounded-2xl shadow-2xl relative z-10 flex flex-col overflow-hidden max-h-[100dvh] sm:max-h-[85vh]"
+            >
+              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-zinc-800 bg-zinc-950">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-tactical-red/20 flex items-center justify-center">
+                    <Heart className="w-5 h-5 text-tactical-red" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">สินค้าที่ถูกใจ</h2>
+                    <p className="text-zinc-500 text-sm">{favorites.length} รายการ</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsFavoritesModalOpen(false)}
+                  className="p-2 sm:p-3 bg-zinc-800 hover:bg-zinc-700 rounded-full text-white transition-colors cursor-pointer active:scale-90"
+                >
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-zinc-900/50 hidden-scrollbar">
+                {favorites.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-10 text-center">
+                    <Heart className="w-16 h-16 text-zinc-700 mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-2">ยังไม่มีสินค้าที่ถูกใจ</h3>
+                    <p className="text-zinc-400 max-w-md">
+                      เลือกดูสินค้าในร้านและกดรูปหัวใจเพื่อบันทึกรายการโปรดของคุณไว้ที่นี่
+                    </p>
+                    <button 
+                      onClick={() => setIsFavoritesModalOpen(false)}
+                      className="mt-6 border border-tactical-red text-tactical-red hover:bg-tactical-red hover:text-white px-6 py-2 rounded-full transition-colors cursor-pointer"
+                    >
+                      เลือกดูสินค้าเลย
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-6">
+                    {displayedProducts.filter(p => favorites.includes(p.id)).map((product) => (
+                      <ProductCard
+                        key={`fav-${product.id}`}
+                        product={product}
+                        isFavorite={true}
+                        onFavorite={handleFavoriteToggle}
+                        onContact={handleContactClick}
+                        onSelect={(p) => {
+                          setIsFavoritesModalOpen(false);
+                          handleProductSelect(p);
+                        }}
+                        onCopyId={handleCopyId}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Contact Mode Modal */}
       <AnimatePresence>
         {isContactModalOpen && (

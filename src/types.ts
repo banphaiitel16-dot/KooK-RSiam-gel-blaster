@@ -10,6 +10,8 @@ export interface Product {
   isOffSale?: boolean;
   isComingSoon?: boolean;
   isPublished?: boolean;
+  isNewArrival?: boolean;
+  newArrivalDate?: number;
 }
 
 export interface Review {

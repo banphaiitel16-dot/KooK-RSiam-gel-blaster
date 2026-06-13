@@ -184,6 +184,7 @@ export default function AdminDashboard({
                             isOffSale: false,
                             isComingSoon: false,
                             isPublished: false,
+                            isNewArrival: false,
                           })
                         }
                         className="bg-tactical-red hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer"
@@ -978,6 +979,23 @@ export default function AdminDashboard({
                     />
                     <span className="text-zinc-300 text-sm font-medium">
                       แสดงสินค้าบนหน้าร้าน
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editingProduct.isNewArrival}
+                      onChange={(e) =>
+                        setEditingProduct({
+                          ...editingProduct,
+                          isNewArrival: e.target.checked,
+                          newArrivalDate: e.target.checked ? Date.now() : undefined,
+                        })
+                      }
+                      className="w-4 h-4 rounded bg-zinc-950 border-zinc-800 text-[#4ade80] focus:ring-[#4ade80] focus:ring-offset-zinc-900"
+                    />
+                    <span className="text-[#4ade80] text-sm font-medium">
+                      ตั้งเป็นสินค้ามาใหม่
                     </span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
