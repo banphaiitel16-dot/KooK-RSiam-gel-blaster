@@ -43,68 +43,68 @@ export default function AdminDashboard({
     <>
           <div className="fixed inset-0 z-[200] bg-tactical-black flex flex-col overflow-hidden">
             {/* Admin Header */}
-            <div className="h-16 border-b border-zinc-800 bg-zinc-950 px-6 flex items-center justify-between shrink-0">
+            <div className="h-16 md:h-20 border-b border-zinc-800 bg-zinc-950 px-4 md:px-8 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-tactical-red rounded-xl flex items-center justify-center">
-                  <ShieldAlert className="w-6 h-6 text-white" />
+                <div className="w-10 h-10 bg-tactical-red rounded-xl flex items-center justify-center shadow-lg shadow-red-900/20">
+                  <ShieldAlert className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-white font-bold font-display leading-tight">
+                  <h1 className="text-white font-bold font-display text-base md:text-lg leading-tight">
                     Admin Console
                   </h1>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-[10px] md:text-xs text-zinc-400">
                     {siteSettings.title} Management
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsAdminDashboardOpen(false)}
-                className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-white transition-colors cursor-pointer"
+                className="p-2 md:p-2.5 bg-zinc-900 hover:bg-zinc-800 rounded-full text-white transition-colors cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 md:w-6 md:h-6" />
               </button>
             </div>
 
             <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
               {/* Admin Sidebar */}
-              <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-zinc-800 bg-zinc-950/50 flex flex-row md:flex-col py-2 md:py-6 gap-2 shrink-0 overflow-x-auto md:overflow-y-auto whitespace-nowrap">
+              <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-zinc-800 bg-zinc-950/80 backdrop-blur-md flex flex-row md:flex-col py-0 md:py-6 gap-0 md:gap-2 shrink-0 overflow-x-auto md:overflow-y-auto whitespace-nowrap hidden-scrollbar">
                 <button
                   onClick={() => setAdminTab("overview")}
-                  className={`flex flex-shrink-0 items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 text-sm font-medium transition-colors ${adminTab === "overview" ? "text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
+                  className={`flex flex-shrink-0 items-center justify-center md:justify-start gap-2 md:gap-3 px-5 md:px-6 py-4 md:py-3 text-sm font-bold transition-all duration-300 ${adminTab === "overview" ? "text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
                 >
                   <LayoutDashboard className="w-4 h-4 md:w-5 md:h-5" />
-                  ภาพรวมระบบ
+                  <span className="hidden sm:inline">ภาพรวมระบบ</span>
                 </button>
                 <button
                   onClick={() => setAdminTab("products")}
-                  className={`flex flex-shrink-0 items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 text-sm font-medium transition-colors ${adminTab === "products" ? "text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
+                  className={`flex flex-shrink-0 items-center justify-center md:justify-start gap-2 md:gap-3 px-5 md:px-6 py-4 md:py-3 text-sm font-bold transition-all duration-300 ${adminTab === "products" ? "text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
                 >
                   <Package className="w-4 h-4 md:w-5 md:h-5" />
-                  จัดการสินค้า
+                  <span className="hidden sm:inline">จัดการสินค้า</span>
                 </button>
                 <button
                   onClick={() => setAdminTab("users")}
-                  className={`flex flex-shrink-0 items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 text-sm font-medium transition-colors ${adminTab === "users" ? "text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
+                  className={`flex flex-shrink-0 items-center justify-center md:justify-start gap-2 md:gap-3 px-5 md:px-6 py-4 md:py-3 text-sm font-bold transition-all duration-300 ${adminTab === "users" ? "text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
                 >
                   <Users className="w-4 h-4 md:w-5 md:h-5" />
-                  จัดการผู้ใช้
+                  <span className="hidden sm:inline">จัดการผู้ใช้</span>
                 </button>
                 <button
                   onClick={() => setAdminTab("orders")}
-                  className={`flex flex-shrink-0 items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 text-sm font-medium transition-colors ${adminTab === "orders" ? "text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
+                  className={`flex flex-shrink-0 items-center justify-center md:justify-start gap-2 md:gap-3 px-5 md:px-6 py-4 md:py-3 text-sm font-bold transition-all duration-300 ${adminTab === "orders" ? "text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
                 >
                   <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" />
-                  ประวัติการสั่งซื้อ
+                  <span className="hidden sm:inline">ประวัติสั่งซื้อ</span>
                 </button>
                 <button
                   onClick={() => {
                     setAdminTab("settings");
                     setEditingSettings(siteSettings);
                   }}
-                  className={`flex flex-shrink-0 items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 text-sm font-medium transition-colors ${adminTab === "settings" ? "text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
+                  className={`flex flex-shrink-0 items-center justify-center md:justify-start gap-2 md:gap-3 px-5 md:px-6 py-4 md:py-3 text-sm font-bold transition-all duration-300 ${adminTab === "settings" ? "text-tactical-red border-b-2 md:border-b-0 md:border-r-2 border-tactical-red bg-tactical-red/10" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
                 >
                   <Settings className="w-4 h-4 md:w-5 md:h-5" />
-                  การตั้งค่าทั่วไป
+                  <span className="hidden sm:inline">การตั้งค่า</span>
                 </button>
               </div>
 
@@ -567,6 +567,40 @@ export default function AdminDashboard({
                               className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
                             />
                           </div>
+                          <div>
+                            <label className="block text-zinc-400 text-sm mb-2">
+                              เวอร์ชันเว็บไซต์ (Website Version)
+                            </label>
+                            <input
+                              type="text"
+                              value={editingSettings.version || "v0.0.0"}
+                              onChange={(e) =>
+                                setEditingSettings({
+                                  ...editingSettings,
+                                  version: e.target.value,
+                                })
+                              }
+                              placeholder="v0.0.0"
+                              className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-zinc-400 text-sm mb-2">
+                              รายละเอียดการอัพเดท (Update Notes / Changelog)
+                            </label>
+                            <textarea
+                              value={editingSettings.updateNotes || ""}
+                              onChange={(e) =>
+                                setEditingSettings({
+                                  ...editingSettings,
+                                  updateNotes: e.target.value,
+                                })
+                              }
+                              rows={4}
+                              placeholder="รายการอัพเดท:\n- เพิ่มฟังก์ชัน...\n- แก้ไขบัค..."
+                              className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-tactical-red"
+                            />
+                          </div>
                           <div className="pt-4 flex gap-4">
                             <button
                               onClick={async () => {
@@ -619,7 +653,11 @@ export default function AdminDashboard({
                               </td>
                               <td className="px-6 py-4 text-white font-medium">
                                 {checkIsAdmin(email) ? (
-                                  <span className="text-tactical-red">Admin (ผู้ดูแลระบบ)</span>
+                                  email?.toLowerCase() === "admin@kook.com" ? (
+                                    <span className="text-tactical-red">Admin (ผู้ดูแลระบบ)</span>
+                                  ) : (
+                                    <span className="text-orange-400">Assistant Admin (ผู้ช่วย admin)</span>
+                                  )
                                 ) : (
                                   <span className="text-zinc-400">User (ผู้ใช้งาน)</span>
                                 )}
@@ -1032,16 +1070,16 @@ export default function AdminDashboard({
                   </label>
                 </div>
               </div>
-              <div className="p-6 border-t border-zinc-800 bg-zinc-950/50 flex justify-end gap-3 sticky bottom-0">
+              <div className="p-6 border-t border-zinc-800 bg-zinc-950/50 flex flex-col sm:flex-row justify-end gap-3 sticky bottom-0 z-20">
                 <button
                   onClick={() => setEditingProduct(null)}
-                  className="px-6 py-2 text-zinc-400 hover:text-white font-medium transition-colors cursor-pointer"
+                  className="px-6 py-2.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg font-medium transition-colors cursor-pointer w-full sm:w-auto order-2 sm:order-1"
                 >
                   ยกเลิก
                 </button>
                 <button
                   onClick={() => handleSaveProduct(editingProduct)}
-                  className="bg-tactical-red hover:bg-red-600 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                  className="bg-tactical-red hover:bg-red-600 text-white px-6 py-2.5 rounded-lg font-bold flex justify-center items-center gap-2 transition-colors cursor-pointer w-full sm:w-auto order-1 sm:order-2 shadow-lg shadow-red-900/20"
                 >
                   <Save className="w-4 h-4" /> บันทึก
                 </button>
@@ -1083,10 +1121,10 @@ export default function AdminDashboard({
                 <p className="text-zinc-400 text-sm mb-6">
                   คุณกำลังจะลบผู้ใช้รายนี้ การกระทำนี้ไม่สามารถย้อนกลับได้
                 </p>
-                <div className="flex justify-end gap-3">
+                <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
                   <button
                     onClick={() => setUserToDelete(null)}
-                    className="px-4 py-2 text-zinc-400 hover:text-white transition-colors"
+                    className="px-4 py-2.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors w-full sm:w-auto order-2 sm:order-1"
                   >
                     ยกเลิก
                   </button>
@@ -1095,7 +1133,7 @@ export default function AdminDashboard({
                       executeDeleteUser(userToDelete);
                       setUserToDelete(null);
                     }}
-                    className="px-4 py-2 bg-tactical-red hover:bg-red-600 text-white rounded-lg transition-colors font-bold"
+                    className="px-4 py-2.5 bg-tactical-red hover:bg-red-600 text-white flex justify-center items-center rounded-lg transition-colors font-bold w-full sm:w-auto order-1 sm:order-2"
                   >
                     ยืนยันการลบ
                   </button>
@@ -1311,16 +1349,16 @@ export default function AdminDashboard({
                   </div>
                 </div>
               </div>
-              <div className="p-6 border-t border-zinc-800 bg-zinc-950/50 flex justify-end gap-3 sticky bottom-0">
+              <div className="p-6 border-t border-zinc-800 bg-zinc-950/50 flex flex-col sm:flex-row justify-end gap-3 sticky bottom-0 z-20">
                 <button
                   onClick={() => setEditingOrder(null)}
-                  className="px-6 py-2 text-zinc-400 hover:text-white font-medium transition-colors cursor-pointer"
+                  className="px-6 py-2.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg font-medium transition-colors cursor-pointer w-full sm:w-auto order-2 sm:order-1"
                 >
                   ยกเลิก
                 </button>
                 <button
                   onClick={() => handleSaveOrder(editingOrder)}
-                  className="bg-tactical-red hover:bg-red-600 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                  className="bg-tactical-red hover:bg-red-600 text-white px-6 py-2.5 rounded-lg font-bold flex justify-center items-center gap-2 transition-colors cursor-pointer w-full sm:w-auto order-1 sm:order-2 shadow-lg shadow-red-900/20"
                 >
                   <Save className="w-4 h-4" /> บันทึก
                 </button>

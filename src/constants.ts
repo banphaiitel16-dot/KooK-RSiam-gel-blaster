@@ -40,6 +40,9 @@ export const checkIsAdmin = (email: string | null | undefined) => {
   const e = email.toLowerCase();
   return (
     e === "admin@kook.com" ||
-    e === "assistant@kook.com"
+    e === "assistant@kook.com" ||
+    e === "assistant2@kook.com" ||
+    e === "staff@kook.com" ||
+    e === "kook07250@gmail.com"
   );
 };

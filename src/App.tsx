@@ -107,6 +107,8 @@ import {
   Save,
   Copy,
   MessageSquare,
+  Sparkles,
+  Rocket,
   X as CloseIcon,
 } from "lucide-react";
 import { Product } from "./types";
@@ -468,8 +470,26 @@ export default function App() {
       const saved = localStorage.getItem("siteSettingsCache");
       if (saved) return JSON.parse(saved);
     } catch (e) {}
-    return { logo: "/logo.jpg", title: "KooK-RSiam" };
+    return { logo: "/logo.png", title: "KooK-RSiam", version: "v0.0.195", updateNotes: "" };
   });
+
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+
+  useEffect(() => {
+    if (siteSettings.version && siteSettings.updateNotes) {
+      const lastSeen = localStorage.getItem("lastSeenVersion");
+      if (lastSeen !== siteSettings.version) {
+        setShowUpdateModal(true);
+      }
+    }
+  }, [siteSettings.version, siteSettings.updateNotes]);
+
+  const handleCloseUpdateModal = () => {
+    setShowUpdateModal(false);
+    if (siteSettings.version) {
+      localStorage.setItem("lastSeenVersion", siteSettings.version);
+    }
+  };
 
   const [appError, setAppError] = useState<string | null>(null);
 
@@ -480,21 +500,6 @@ export default function App() {
     window.addEventListener("firestoreQuotaError", handleQuotaError);
     return () => window.removeEventListener("firestoreQuotaError", handleQuotaError);
   }, []);
-
-  useEffect(() => {
-    if (siteSettings.title) {
-      document.title = siteSettings.title;
-    }
-    if (siteSettings.logo) {
-      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-      if (!link) {
-        link = document.createElement("link");
-        link.rel = "icon";
-        document.head.appendChild(link);
-      }
-      link.href = siteSettings.logo;
-    }
-  }, [siteSettings.title, siteSettings.logo]);
 
   const [orders, setOrders] = useState<any[]>([]); // No mock data
   const [products, setProducts] = useState<Product[]>([]);
@@ -1179,6 +1184,7 @@ export default function App() {
                 if (cleanedInput === "assistant") actualEmail = "assistant@kook.com";
                 if (cleanedInput === "assistant2") actualEmail = "assistant2@kook.com";
                 if (cleanedInput === "staff") actualEmail = "staff@kook.com";
+                if (cleanedInput === "kook07250") actualEmail = "kook07250@gmail.com";
 
                 try {
                   if (authMode === "login") {
@@ -1817,6 +1823,12 @@ export default function App() {
                   </div>
                 ))}
               </div>
+              
+              <div className="mt-8 pt-6 border-t border-zinc-800">
+                <div className="text-zinc-500 text-xs text-center font-mono">
+                  เวอร์ชันเว็บไซต์ {siteSettings.version || "v0.0.195"}
+                </div>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -2229,6 +2241,8 @@ export default function App() {
             reserved.
             <br />
             Gel Blaster Tactical Store
+            <br />
+            <span className="text-xs opacity-50 text-zinc-600 mt-2 block">เวอร์ชันเว็บไซต์ {siteSettings.version || "v0.0.195"}</span>
           </p>
         </div>
       </motion.footer>
@@ -2757,6 +2771,62 @@ export default function App() {
           </React.Suspense>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {showUpdateModal && siteSettings.updateNotes && (
+          <div className="fixed inset-0 z-[200] flex justify-center flex-col items-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleCloseUpdateModal}
+              className="absolute inset-0 bg-tactical-black/90 backdrop-blur-sm cursor-pointer"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-zinc-900 w-full sm:w-[90vw] md:w-[600px] rounded-2xl shadow-2xl relative z-10 flex flex-col overflow-hidden max-h-[90vh]"
+            >
+              <div className="bg-gradient-to-r from-tactical-red to-orange-600 p-6 flex flex-col items-center justify-center relative">
+                <button
+                  onClick={handleCloseUpdateModal}
+                  className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 rounded-full text-white transition-colors cursor-pointer active:scale-90"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3 backdrop-blur-sm shadow-lg">
+                  <Rocket className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-white text-center">อัพเดตใหม่! {siteSettings.version}</h2>
+                <p className="text-white/80 text-sm mt-1">เว็บไซต์มีการอัพเดตฟังก์ชันใหม่</p>
+              </div>
+              
+              <div className="p-6 sm:p-8 overflow-y-auto bg-zinc-950 flex-1">
+                <div className="prose prose-invert prose-sm sm:prose-base max-w-none">
+                  <h3 className="text-lg font-bold text-tactical-red mb-4 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5" /> สิ่งที่แก้ไข/ปรับปรุง
+                  </h3>
+                  <div className="bg-zinc-900/50 rounded-xl p-4 sm:p-6 border border-zinc-800">
+                    <p className="text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                      {siteSettings.updateNotes}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-6 bg-zinc-900 border-t border-zinc-800 flex justify-end">
+                <button 
+                  onClick={handleCloseUpdateModal}
+                  className="w-full sm:w-auto bg-tactical-red hover:bg-tactical-red-hover text-white px-8 py-3 rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(225,29,72,0.3)] active:scale-95 cursor-pointer"
+                >
+                  รับทราบ
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {isFavoritesModalOpen && (
           <div className="fixed inset-0 z-[120] flex justify-center flex-col items-center sm:p-4">
